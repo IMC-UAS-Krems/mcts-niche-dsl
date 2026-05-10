@@ -8,10 +8,25 @@ from lark import Lark
 class OllamaClient:
     """Client for Ollama API to query open-source LLMs."""
     
-    def __init__(self, base_url: str = "http://localhost:11434", model: str = "mistral"):
+    def __init__(self, base_url: str = "http://localhost:11434", model: str = "mistral", 
+                 api_key: Optional[str] = None, auth_token: Optional[str] = None):
+        """Initialize Ollama client with optional authentication.
+        
+        Args:
+            base_url: Base URL for Ollama API
+            model: Model name to use
+            api_key: API key for authentication (added to 'Authorization: Bearer' header)
+            auth_token: Alternative authentication token
+        """
         self.base_url = base_url
         self.model = model
         self.endpoint = f"{base_url}/api/generate"
+        self.headers = {"Content-Type": "application/json"}
+        
+        # Add authentication headers if provided
+        token = api_key or auth_token
+        if token:
+            self.headers["Authorization"] = f"Bearer {token}"
     
     def generate(self, prompt: str, stream: bool = False) -> str:
         """Generate text using Ollama API."""
@@ -21,7 +36,9 @@ class OllamaClient:
             "stream": stream
         }
         try:
-            response = requests.post(self.endpoint, json=payload, timeout=30)
+            response = requests.post(self.endpoint, json=payload, headers=self.headers, timeout=30)
+            if response.status_code == 403:
+                raise requests.exceptions.HTTPError(f"403 Forbidden: Check API key and authentication. Response: {response.text}")
             response.raise_for_status()
             if stream:
                 # For streaming, collect all chunks
@@ -78,6 +95,7 @@ Respond with only a number between 0 and 1."""
             return float(response)
         except:
             return 0.5  # Default neutral score
+
 
 class MCTSNode:
     def __init__(self, partial_ast: Dict[str, Any], parent: Optional['MCTSNode'] = None, nl_prompt: str = ""):
@@ -216,7 +234,9 @@ class MCTS:
         
         return reward
 
-def generate_code(nl_prompt: str, iterations: int = 1000, use_llm: bool = False, ollama_url: str = "http://localhost:11434", ollama_model: str = "mistral") -> str:
+def generate_code(nl_prompt: str, iterations: int = 1000, use_llm: bool = False, 
+                 ollama_url: str = "http://localhost:11434", ollama_model: str = "mistral",
+                 api_key: Optional[str] = None, auth_token: Optional[str] = None) -> str:
     """Generate MiniZinc code using MCTS guided by NL prompt.
     
     Args:
@@ -225,6 +245,8 @@ def generate_code(nl_prompt: str, iterations: int = 1000, use_llm: bool = False,
         use_llm: Whether to use LLM guidance via Ollama
         ollama_url: Base URL for Ollama API
         ollama_model: Model name to use in Ollama
+        api_key: API key for Ollama authentication
+        auth_token: Alternative authentication token
     
     Returns:
         Generated MiniZinc code as a string
@@ -235,7 +257,8 @@ def generate_code(nl_prompt: str, iterations: int = 1000, use_llm: bool = False,
     llm_client = None
     if use_llm:
         try:
-            llm_client = OllamaClient(base_url=ollama_url, model=ollama_model)
+            llm_client = OllamaClient(base_url=ollama_url, model=ollama_model, 
+                                     api_key=api_key, auth_token=auth_token)
             # Test connection
             llm_client.generate("test", stream=False)
         except Exception as e:
