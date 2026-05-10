@@ -1,53 +1,155 @@
 import random
+import requests
+import json
 from typing import List, Dict, Any, Optional
 from minizinc_parser import parse_model, build_parser
 from lark import Lark
 
+class OllamaClient:
+    """Client for Ollama API to query open-source LLMs."""
+    
+    def __init__(self, base_url: str = "http://localhost:11434", model: str = "mistral"):
+        self.base_url = base_url
+        self.model = model
+        self.endpoint = f"{base_url}/api/generate"
+    
+    def generate(self, prompt: str, stream: bool = False) -> str:
+        """Generate text using Ollama API."""
+        payload = {
+            "model": self.model,
+            "prompt": prompt,
+            "stream": stream
+        }
+        try:
+            response = requests.post(self.endpoint, json=payload, timeout=30)
+            response.raise_for_status()
+            if stream:
+                # For streaming, collect all chunks
+                result = ""
+                for line in response.iter_lines():
+                    if line:
+                        data = json.loads(line)
+                        result += data.get('response', '')
+                return result
+            else:
+                data = response.json()
+                return data.get('response', '')
+        except requests.exceptions.RequestException as e:
+            print(f"Ollama API error: {e}")
+            return ""
+    
+    def rank_actions(self, nl_prompt: str, actions: List[str]) -> Dict[str, float]:
+        """Rank candidate actions by likelihood given the NL prompt."""
+        prompt = f"""Given the natural language intent: "{nl_prompt}"
+        
+Rank these MiniZinc modeling actions by relevance (0.0 to 1.0):
+{chr(10).join(f"- {action}" for action in actions)}
+
+Return only the ranking as JSON like: {{"action1": 0.8, "action2": 0.3}}"""
+        
+        response = self.generate(prompt)
+        try:
+            # Extract JSON from response
+            import re
+            match = re.search(r'\{.*\}', response, re.DOTALL)
+            if match:
+                return json.loads(match.group())
+        except:
+            pass
+        
+        # Fallback: equal probability
+        return {action: 1.0 / len(actions) for action in actions}
+    
+    def evaluate_model(self, nl_prompt: str, minizinc_code: str) -> float:
+        """Evaluate how well generated code matches the NL intent (0.0 to 1.0)."""
+        prompt = f"""Given the natural language specification:
+"{nl_prompt}"
+
+And the generated MiniZinc code:
+```
+{minizinc_code}
+```
+
+On a scale of 0 to 1, how well does the code match the specification?
+Respond with only a number between 0 and 1."""
+        
+        response = self.generate(prompt).strip()
+        try:
+            return float(response)
+        except:
+            return 0.5  # Default neutral score
+
 class MCTSNode:
-    def __init__(self, partial_ast: Dict[str, Any], parent: Optional['MCTSNode'] = None):
+    def __init__(self, partial_ast: Dict[str, Any], parent: Optional['MCTSNode'] = None, nl_prompt: str = ""):
         self.partial_ast = partial_ast  # Current AST state
         self.parent = parent
         self.children: List['MCTSNode'] = []
         self.visits = 0
         self.value = 0.0
+        self.nl_prompt = nl_prompt
         self.untried_actions: List[Any] = self.get_possible_actions()
 
     def get_possible_actions(self) -> List[Any]:
         """Get valid grammar productions to expand the current partial AST."""
-        # This is a simplified version; in practice, we'd analyze the AST for non-terminals
-        # For now, return dummy actions
-        return ["var_decl", "constraint", "solve"]  # Placeholder
+        # Check what's missing in the current model
+        items = self.partial_ast.get('items', [])
+        item_types = set(item.get('type') for item in items)
+        
+        actions = []
+        if 'var_decl' not in item_types:
+            actions.append("add_var_decl")
+        if 'constraint' not in item_types:
+            actions.append("add_constraint")
+        if 'solve' not in item_types:
+            actions.append("add_solve")
+        
+        return actions
 
     def is_terminal(self) -> bool:
         """Check if this node represents a complete MiniZinc model."""
-        # Check if AST has solve item and no incomplete parts
-        return 'solve' in [item.get('type') for item in self.partial_ast.get('items', [])]
+        items = self.partial_ast.get('items', [])
+        item_types = set(item.get('type') for item in items)
+        return 'solve' in item_types
 
     def expand(self) -> 'MCTSNode':
         """Expand by choosing an untried action."""
-        action = self.untried_actions.pop()
+        if not self.untried_actions:
+            return self  # No more actions
+        action = self.untried_actions.pop(0)
         new_ast = self.apply_action(action)
-        child = MCTSNode(new_ast, self)
+        child = MCTSNode(new_ast, self, self.nl_prompt)
         self.children.append(child)
         return child
 
     def apply_action(self, action: str) -> Dict[str, Any]:
         """Apply a grammar action to create a new partial AST."""
-        # Placeholder: add a dummy item based on action
         new_ast = self.partial_ast.copy()
         if 'items' not in new_ast:
             new_ast['items'] = []
-        if action == "var_decl":
-            new_ast['items'].append({"type": "var_decl", "name": "x", "decl": {"type": "var_range", "lo": 1, "hi": 3}})
-        elif action == "constraint":
-            new_ast['items'].append({"type": "constraint", "expr": {"type": "binop", "op": ">", "left": "x", "right": 1}})
-        elif action == "solve":
+        new_ast['items'] = new_ast['items'].copy()
+        
+        if action == "add_var_decl":
+            new_ast['items'].append({
+                "type": "var_decl",
+                "name": "x",
+                "decl": {"type": "var_range", "lo": 1, "hi": 3},
+                "value": None
+            })
+        elif action == "add_constraint":
+            new_ast['items'].append({
+                "type": "constraint",
+                "expr": {"type": "binop", "op": ">", "left": "x", "right": 1}
+            })
+        elif action == "add_solve":
             new_ast['items'].append({"type": "solve", "mode": "satisfy"})
+        
         return new_ast
 
     def best_child(self, c: float = 1.4) -> 'MCTSNode':
         """Select the best child using UCT formula."""
-        return max(self.children, key=lambda child: child.value / child.visits + c * (self.visits ** 0.5) / child.visits)
+        if not self.children:
+            return self
+        return max(self.children, key=lambda child: (child.value / max(child.visits, 1)) + c * (self.visits ** 0.5) / max(child.visits, 1))
 
     def update(self, reward: float):
         """Backpropagate the reward."""
@@ -57,14 +159,16 @@ class MCTSNode:
             self.parent.update(reward)
 
 class MCTS:
-    def __init__(self, root_ast: Dict[str, Any]):
-        self.root = MCTSNode(root_ast)
+    def __init__(self, root_ast: Dict[str, Any], nl_prompt: str = "", llm_client: Optional[OllamaClient] = None):
+        self.root = MCTSNode(root_ast, nl_prompt=nl_prompt)
+        self.nl_prompt = nl_prompt
+        self.llm_client = llm_client
 
     def search(self, iterations: int) -> MCTSNode:
         """Perform MCTS search for the given number of iterations."""
         for _ in range(iterations):
             node = self.select(self.root)
-            if not node.is_terminal():
+            if not node.is_terminal() and node.untried_actions:
                 node = node.expand()
             reward = self.simulate(node)
             node.update(reward)
@@ -77,26 +181,69 @@ class MCTS:
         return node
 
     def simulate(self, node: MCTSNode) -> float:
-        """Simulate a rollout from the current node."""
-        # Placeholder: random rollout
+        """Simulate a rollout from the current node with LLM guidance."""
+        current_node = node
         depth = 0
-        while not node.is_terminal() and depth < 10:
-            if node.untried_actions:
-                action = random.choice(node.untried_actions)
-                node.untried_actions.remove(action)
-                new_ast = node.apply_action(action)
-                node = MCTSNode(new_ast, node.parent)
+        max_depth = 10
+        
+        while not current_node.is_terminal() and depth < max_depth:
+            actions = current_node.untried_actions
+            if not actions:
+                break
+            
+            # Use LLM to rank actions if available
+            if self.llm_client:
+                action_scores = self.llm_client.rank_actions(self.nl_prompt, actions)
+                # Choose action with highest score
+                action = max(actions, key=lambda a: action_scores.get(a, 0.5))
+            else:
+                # Random selection as fallback
+                action = random.choice(actions)
+            
+            current_node.untried_actions.remove(action)
+            new_ast = current_node.apply_action(action)
+            current_node = MCTSNode(new_ast, current_node.parent, self.nl_prompt)
             depth += 1
-        # Reward: 1 if terminal, 0 otherwise
-        return 1.0 if node.is_terminal() else 0.0
+        
+        # Generate code and evaluate with LLM if available
+        code = ast_to_code(current_node.partial_ast)
+        
+        if self.llm_client and self.nl_prompt:
+            reward = self.llm_client.evaluate_model(self.nl_prompt, code)
+        else:
+            # Reward: 1 if terminal, 0 otherwise
+            reward = 1.0 if current_node.is_terminal() else 0.0
+        
+        return reward
 
-def generate_code(nl_prompt: str, iterations: int = 1000) -> str:
-    """Generate MiniZinc code using MCTS guided by NL prompt."""
+def generate_code(nl_prompt: str, iterations: int = 1000, use_llm: bool = False, ollama_url: str = "http://localhost:11434", ollama_model: str = "mistral") -> str:
+    """Generate MiniZinc code using MCTS guided by NL prompt.
+    
+    Args:
+        nl_prompt: Natural language description of the desired MiniZinc model
+        iterations: Number of MCTS iterations to perform
+        use_llm: Whether to use LLM guidance via Ollama
+        ollama_url: Base URL for Ollama API
+        ollama_model: Model name to use in Ollama
+    
+    Returns:
+        Generated MiniZinc code as a string
+    """
     # Start with empty model
     root_ast = {"type": "model", "items": []}
-    mcts = MCTS(root_ast)
+    
+    llm_client = None
+    if use_llm:
+        try:
+            llm_client = OllamaClient(base_url=ollama_url, model=ollama_model)
+            # Test connection
+            llm_client.generate("test", stream=False)
+        except Exception as e:
+            print(f"Warning: Could not connect to Ollama: {e}")
+            llm_client = None
+    
+    mcts = MCTS(root_ast, nl_prompt=nl_prompt, llm_client=llm_client)
     best_node = mcts.search(iterations)
-    # Convert AST back to code (placeholder)
     return ast_to_code(best_node.partial_ast)
 
 def ast_to_code(ast: Dict[str, Any]) -> str:
@@ -195,7 +342,14 @@ def expr_to_str(expr: Any) -> str:
 
 if __name__ == "__main__":
     # Example usage
-    nl = "Declare x from 1 to 3, constrain x > 1, solve satisfy."
-    code = generate_code(nl)
+    nl = "Declare x from 1 to 3, constrain x > 1, and solve to satisfy the constraints."
+    
+    print("Generating MiniZinc code without LLM guidance...")
+    code = generate_code(nl, iterations=10, use_llm=True, ollama_model='mistral-large-3:675b-cloud')
     print("Generated code:")
     print(code)
+    print()
+    
+    print("To use LLM guidance, ensure Ollama is running at http://localhost:11434")
+    print("Example with LLM (requires Ollama):")
+    print("  code = generate_code(nl, iterations=50, use_llm=True, ollama_model='mistral')")
