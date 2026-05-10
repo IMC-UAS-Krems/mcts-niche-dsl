@@ -101,31 +101,97 @@ def generate_code(nl_prompt: str, iterations: int = 1000) -> str:
 
 def ast_to_code(ast: Dict[str, Any]) -> str:
     """Convert AST back to MiniZinc code string."""
-    # Placeholder implementation
+    if ast['type'] != 'model':
+        raise ValueError("AST must be a model")
     code_lines = []
     for item in ast.get('items', []):
-        if item['type'] == 'var_decl':
-            decl = item['decl']
-            if decl['type'] == 'var_range':
-                code_lines.append(f"var {decl['lo']}..{decl['hi']}: {item['name']};")
-            # Add more cases
-        elif item['type'] == 'constraint':
-            # Simplify expr to string
-            expr_str = expr_to_str(item['expr'])
-            code_lines.append(f"constraint {expr_str};")
-        elif item['type'] == 'solve':
-            code_lines.append(f"solve {item['mode']};")
+        line = item_to_code(item)
+        if line:
+            code_lines.append(line + ";")
     return '\n'.join(code_lines)
 
-def expr_to_str(expr: Dict[str, Any]) -> str:
+def item_to_code(item: Dict[str, Any]) -> str:
+    """Convert an item dict to code string."""
+    itype = item['type']
+    if itype == 'var_decl':
+        decl_str = ti_expr_to_code(item['decl'])
+        name = item['name']
+        value_str = f" = {expr_to_str(item['value'])}" if item.get('value') is not None else ""
+        return f"{decl_str}: {name}{value_str}"
+    elif itype == 'assign':
+        return f"{item['name']} = {expr_to_str(item['value'])}"
+    elif itype == 'constraint':
+        return f"constraint {expr_to_str(item['expr'])}"
+    elif itype == 'solve':
+        mode = item['mode']
+        expr_str = f" {expr_to_str(item['expr'])}" if 'expr' in item else ""
+        return f"solve {mode}{expr_str}"
+    elif itype == 'output':
+        return f"output {expr_to_str(item['expr'])}"
+    elif itype == 'include':
+        return f"include {item['path']}"
+    return ""  # Unknown item
+
+def ti_expr_to_code(ti_expr: Dict[str, Any]) -> str:
+    """Convert type-inst expr to string."""
+    if ti_expr['type'] == 'var_range':
+        return f"var {ti_expr['lo']}..{ti_expr['hi']}"
+    elif ti_expr['type'] == 'base_ti_expr':
+        parts = []
+        if 'var' in ti_expr.get('values', []):
+            parts.append('var')
+        if 'set_of' in ti_expr.get('values', []):
+            parts.append('set of')
+        parts.append(ti_expr.get('base_type', 'int'))  # Default
+        return ' '.join(parts)
+    # Add more cases as needed
+    return str(ti_expr)  # Placeholder
+
+def expr_to_str(expr: Any) -> str:
     """Convert expression AST to string."""
+    if isinstance(expr, (int, float)):
+        return str(expr)
     if isinstance(expr, str):
         return expr
-    if expr['type'] == 'binop':
+    if isinstance(expr, bool):
+        return 'true' if expr else 'false'
+    if not isinstance(expr, dict):
+        return str(expr)
+    
+    etype = expr['type']
+    if etype == 'bool':
+        return 'true' if expr['value'] else 'false'
+    elif etype == 'binop':
         left = expr_to_str(expr['left'])
+        op = expr['op']
         right = expr_to_str(expr['right'])
-        return f"{left} {expr['op']} {right}"
-    return str(expr)  # Placeholder
+        return f"{left} {op} {right}"
+    elif etype == 'call':
+        name = expr['name']
+        args = ', '.join(expr_to_str(arg) for arg in expr.get('args', []))
+        return f"{name}({args})"
+    elif etype == 'set':
+        elements = ', '.join(expr_to_str(e) for e in expr.get('elements', []))
+        return f"{{{elements}}}"
+    elif etype == 'array':
+        elements = ', '.join(expr_to_str(e) for e in expr.get('elements', []))
+        return f"[{elements}]"
+    elif etype == 'if':
+        cond = expr_to_str(expr['cond'])
+        then_part = expr_to_str(expr['then'])
+        parts = [f"if {cond} then {then_part}"]
+        if 'elif' in expr:
+            for elif_part in expr['elif']:
+                econd = expr_to_str(elif_part['cond'])
+                ethen = expr_to_str(elif_part['then'])
+                parts.append(f"elseif {econd} then {ethen}")
+        if 'else' in expr:
+            else_part = expr_to_str(expr['else'])
+            parts.append(f"else {else_part}")
+        parts.append("endif")
+        return ' '.join(parts)
+    # Add more expression types as needed
+    return str(expr)  # Fallback
 
 if __name__ == "__main__":
     # Example usage
