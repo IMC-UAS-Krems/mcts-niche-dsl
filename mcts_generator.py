@@ -14,7 +14,7 @@ class OllamaClient:
     """Client for Ollama API to query open-source LLMs."""
     
     def __init__(self, base_url: str = "http://localhost:11434", model: str = "mistral", 
-                 api_key: Optional[str] = None, auth_token: Optional[str] = None):
+                 api_key: Optional[str] = None, auth_token: Optional[str] = None, log: bool = False):
         """Initialize Ollama client with optional authentication.
         
         Args:
@@ -22,9 +22,11 @@ class OllamaClient:
             model: Model name to use
             api_key: API key for authentication (added to 'Authorization: Bearer' header)
             auth_token: Alternative authentication token
+            log: Whether to log prompts and responses for evaluation
         """
         self.base_url = base_url.rstrip("/")
         self.model = model
+        self.log = log
         self.endpoint_candidates = [
             f"{self.base_url}/api/generate",
             f"{self.base_url}/v1/generate",
@@ -162,6 +164,11 @@ On a scale of 0 to 1, how well does the code match the specification?
 Respond with only a number between 0 and 1."""
         
         response = self.generate(prompt).strip()
+        if getattr(self, 'log', False):
+            print("[evaluate_model] prompt:")
+            print(prompt)
+            print("[evaluate_model] response:")
+            print(response)
         try:
             return float(response)
         except:
@@ -248,10 +255,13 @@ class MCTSNode:
             self.parent.update(reward)
 
 class MCTS:
-    def __init__(self, root_ast: Dict[str, Any], nl_prompt: str = "", llm_client: Optional[OllamaClient] = None):
+    def __init__(self, root_ast: Dict[str, Any], nl_prompt: str = "", llm_client: Optional[OllamaClient] = None, log: bool = False):
         self.root = MCTSNode(root_ast, nl_prompt=nl_prompt)
         self.nl_prompt = nl_prompt
         self.llm_client = llm_client
+        self.log = log
+        if self.llm_client is not None:
+            self.llm_client.log = log
 
     def search(self, iterations: int) -> MCTSNode:
         """Perform MCTS search for the given number of iterations."""
@@ -340,7 +350,7 @@ def generate_code(nl_prompt: str, iterations: int = 1000, use_llm: bool = False,
             print(f"Warning: Could not connect to Ollama: {e}")
             llm_client = None
     
-    mcts = MCTS(root_ast, nl_prompt=nl_prompt, llm_client=llm_client)
+    mcts = MCTS(root_ast, nl_prompt=nl_prompt, llm_client=llm_client, log=False)
     best_node = mcts.search(iterations)
     return ast_to_code(best_node.partial_ast)
 
@@ -440,14 +450,11 @@ def expr_to_str(expr: Any) -> str:
 
 if __name__ == "__main__":
     # Example usage
-    nl = "Declare x from 1 to 3, constrain x > 1, and solve to satisfy the constraints."
+    nl = "Declare a boolean variable b."
     
     print("Generating MiniZinc code with LLM guidance...")
+    print(f"NL Prompt: {nl}")
     code = generate_code(nl, iterations=10, use_llm=True, ollama_model=os.getenv('OLLAMA_MODEL'))
     print("Generated code:")
     print(code)
     print()
-    
-    print("To use LLM guidance, ensure Ollama is running at http://localhost:11434")
-    print("Example with LLM (requires Ollama):")
-    print("  code = generate_code(nl, iterations=50, use_llm=True, ollama_model='mistral')")
