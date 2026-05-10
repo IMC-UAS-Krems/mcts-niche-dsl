@@ -1,0 +1,82 @@
+[
+  {
+    "nl": "Declare a variable x that can be 1, 2, or 3.",
+    "code": "var 1..3: x;"
+  },
+  {
+    "nl": "Declare a boolean variable b.",
+    "code": "var bool: b;"
+  },
+  {
+    "nl": "Declare an integer variable y between 0 and 10.",
+    "code": "var 0..10: y;"
+  },
+  {
+    "nl": "Declare an array of 5 boolean variables.",
+    "code": "array[1..5] of var bool: arr;"
+  },
+  {
+    "nl": "Declare a set variable that can contain subsets of 1 to 5.",
+    "code": "var set of 1..5: s;"
+  },
+  {
+    "nl": "Add a constraint that x must be greater than 1.",
+    "code": "constraint x > 1;"
+  },
+  {
+    "nl": "Add a constraint that b is true.",
+    "code": "constraint b;"
+  },
+  {
+    "nl": "Add a constraint that y is not equal to 5.",
+    "code": "constraint y != 5;"
+  },
+  {
+    "nl": "Add a constraint that the sum of arr is 3.",
+    "code": "constraint sum(arr) == 3;"
+  },
+  {
+    "nl": "Add a constraint that x is in the set s.",
+    "code": "constraint x in s;"
+  },
+  {
+    "nl": "Solve to satisfy the constraints.",
+    "code": "solve satisfy;"
+  },
+  {
+    "nl": "Maximize the value of x.",
+    "code": "solve maximize x;"
+  },
+  {
+    "nl": "Minimize y.",
+    "code": "solve minimize y;"
+  },
+  {
+    "nl": "Output the value of x.",
+    "code": "output x;"
+  },
+  {
+    "nl": "Output the array arr.",
+    "code": "output arr;"
+  },
+  {
+    "nl": "Declare x as 1 to 3, y as 0 to 10, and constrain x + y <= 10, then maximize x.",
+    "code": "var 1..3: x;\nvar 0..10: y;\nconstraint x + y <= 10;\nsolve maximize x;"
+  },
+  {
+    "nl": "Declare a boolean b and an integer z from 1 to 5, constrain that if b then z > 2, and satisfy.",
+    "code": "var bool: b;\nvar 1..5: z;\nconstraint b -> z > 2;\nsolve satisfy;"
+  },
+  {
+    "nl": "Declare an array of 3 integers each from 0 to 4, constrain their sum to 6, and satisfy.",
+    "code": "array[1..3] of var 0..4: nums;\nconstraint sum(nums) == 6;\nsolve satisfy;"
+  },
+  {
+    "nl": "Declare x as 1 to 10, constrain x mod 2 == 0, and minimize x.",
+    "code": "var 1..10: x;\nconstraint x mod 2 == 0;\nsolve minimize x;"
+  },
+  {
+    "nl": "Declare two booleans a and c, constrain a or c, and satisfy.",
+    "code": "var bool: a;\nvar bool: c;\nconstraint a \\/ c;\nsolve satisfy;"
+  }
+]
