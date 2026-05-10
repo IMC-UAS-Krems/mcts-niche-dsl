@@ -14,11 +14,16 @@ To use with Ollama Cloud (which requires authentication):
 """
 
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
 from mcts_generator import generate_code, OllamaClient
 
 def test_ollama_connection():
     """Test connection to Ollama with authentication."""
-    # Get configuration from environment
+    # Get configuration from environment (.env file or system env)
     ollama_url = os.getenv("OLLAMA_URL", "http://localhost:11434")
     api_key = os.getenv("OLLAMA_API_KEY")
     ollama_model = os.getenv("OLLAMA_MODEL", "mistral")
@@ -46,6 +51,9 @@ def test_ollama_connection():
             
     except Exception as e:
         print(f"✗ Connection failed: {e}")
+        if "403" in str(e):
+            print("  → Check your API key in .env file or environment variables")
+            print("  → Get API key from: https://ollama.com/account/api-keys")
 
 def generate_with_auth():
     """Generate MiniZinc code with optional LLM authentication."""

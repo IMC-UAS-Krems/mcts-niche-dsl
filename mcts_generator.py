@@ -1,9 +1,14 @@
 import random
 import requests
 import json
+import os
 from typing import List, Dict, Any, Optional
+from dotenv import load_dotenv
 from minizinc_parser import parse_model, build_parser
 from lark import Lark
+
+# Load environment variables from .env file
+load_dotenv()
 
 class OllamaClient:
     """Client for Ollama API to query open-source LLMs."""
@@ -18,9 +23,16 @@ class OllamaClient:
             api_key: API key for authentication (added to 'Authorization: Bearer' header)
             auth_token: Alternative authentication token
         """
-        self.base_url = base_url
+        self.base_url = base_url.rstrip("/")
         self.model = model
-        self.endpoint = f"{base_url}/api/generate"
+        self.endpoint_candidates = [
+            f"{self.base_url}/api/generate",
+            f"{self.base_url}/v1/generate",
+            f"{self.base_url}/api/completions",
+            f"{self.base_url}/v1/completions",
+            f"{self.base_url}/v1/chat/completions",
+        ]
+        self.endpoint = self.endpoint_candidates[0]
         self.headers = {"Content-Type": "application/json"}
         
         # Add authentication headers if provided
@@ -28,32 +40,91 @@ class OllamaClient:
         if token:
             self.headers["Authorization"] = f"Bearer {token}"
     
+    def _parse_response(self, data: Any) -> str:
+        """Parse different Ollama/OpenAI-style response formats."""
+        if isinstance(data, dict):
+            if 'response' in data:
+                return data['response'] or ""
+            if 'output' in data:
+                output = data['output']
+                if isinstance(output, list):
+                    return ''.join(str(item) for item in output)
+                return str(output)
+            if 'choices' in data and isinstance(data['choices'], list) and data['choices']:
+                first = data['choices'][0]
+                if isinstance(first, dict):
+                    if 'message' in first and isinstance(first['message'], dict):
+                        return first['message'].get('content', '')
+                    if 'text' in first:
+                        return first.get('text', '')
+                    if 'output' in first:
+                        return str(first['output'])
+        return str(data)
+
     def generate(self, prompt: str, stream: bool = False) -> str:
         """Generate text using Ollama API."""
-        payload = {
-            "model": self.model,
-            "prompt": prompt,
-            "stream": stream
-        }
-        try:
-            response = requests.post(self.endpoint, json=payload, headers=self.headers, timeout=30)
+        last_error = None
+        for endpoint in self.endpoint_candidates:
+            if endpoint.endswith("/v1/chat/completions"):
+                payload = {
+                    "model": self.model,
+                    "messages": [{"role": "user", "content": prompt}],
+                }
+            elif endpoint.endswith("/v1/completions"):
+                payload = {
+                    "model": self.model,
+                    "input": prompt,
+                }
+            else:
+                payload = {
+                    "model": self.model,
+                    "prompt": prompt,
+                    "stream": stream,
+                }
+
+            try:
+                response = requests.post(endpoint, json=payload, headers=self.headers, timeout=30)
+            except requests.exceptions.RequestException as e:
+                last_error = e
+                continue
+
+            if response.status_code == 404:
+                last_error = requests.exceptions.HTTPError(
+                    f"404 Not Found: {response.text}"
+                )
+                continue
             if response.status_code == 403:
-                raise requests.exceptions.HTTPError(f"403 Forbidden: Check API key and authentication. Response: {response.text}")
-            response.raise_for_status()
+                raise requests.exceptions.HTTPError(
+                    f"403 Forbidden: Check API key and authentication. Response: {response.text}"
+                )
+            try:
+                response.raise_for_status()
+            except requests.exceptions.RequestException as e:
+                last_error = requests.exceptions.HTTPError(
+                    f"{e} - {response.text}"
+                )
+                continue
+
+            self.endpoint = endpoint
             if stream:
-                # For streaming, collect all chunks
                 result = ""
                 for line in response.iter_lines():
                     if line:
-                        data = json.loads(line)
-                        result += data.get('response', '')
+                        try:
+                            data = json.loads(line)
+                            result += data.get('response', '')
+                        except json.JSONDecodeError:
+                            result += line.decode('utf-8', errors='ignore')
                 return result
             else:
                 data = response.json()
-                return data.get('response', '')
-        except requests.exceptions.RequestException as e:
-            print(f"Ollama API error: {e}")
-            return ""
+                return self._parse_response(data)
+
+        if last_error:
+            print(f"Ollama API error: {last_error}")
+        else:
+            print(f"Ollama API error: no endpoint responded successfully. Tried: {self.endpoint_candidates}")
+        return ""
     
     def rank_actions(self, nl_prompt: str, actions: List[str]) -> Dict[str, float]:
         """Rank candidate actions by likelihood given the NL prompt."""
@@ -245,7 +316,7 @@ def generate_code(nl_prompt: str, iterations: int = 1000, use_llm: bool = False,
         use_llm: Whether to use LLM guidance via Ollama
         ollama_url: Base URL for Ollama API
         ollama_model: Model name to use in Ollama
-        api_key: API key for Ollama authentication
+        api_key: API key for Ollama authentication (overrides env var)
         auth_token: Alternative authentication token
     
     Returns:
@@ -257,8 +328,12 @@ def generate_code(nl_prompt: str, iterations: int = 1000, use_llm: bool = False,
     llm_client = None
     if use_llm:
         try:
+            # Use provided key or load from environment
+            final_api_key = api_key or os.getenv("OLLAMA_API_KEY")
+            final_auth_token = auth_token or os.getenv("OLLAMA_AUTH_TOKEN")
+            
             llm_client = OllamaClient(base_url=ollama_url, model=ollama_model, 
-                                     api_key=api_key, auth_token=auth_token)
+                                     api_key=final_api_key, auth_token=final_auth_token)
             # Test connection
             llm_client.generate("test", stream=False)
         except Exception as e:
