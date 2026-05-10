@@ -442,8 +442,8 @@ if __name__ == "__main__":
     # Example usage
     nl = "Declare x from 1 to 3, constrain x > 1, and solve to satisfy the constraints."
     
-    print("Generating MiniZinc code without LLM guidance...")
-    code = generate_code(nl, iterations=10, use_llm=True, ollama_model='mistral-large-3:675b-cloud')
+    print("Generating MiniZinc code with LLM guidance...")
+    code = generate_code(nl, iterations=10, use_llm=True, ollama_model=os.getenv('OLLAMA_MODEL'))
     print("Generated code:")
     print(code)
     print()
