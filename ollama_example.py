@@ -19,7 +19,7 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-from mcts_generator import generate_code, OllamaClient
+from mcts_generator_old import generate_code, OllamaClient
 
 def test_ollama_connection():
     """Test connection to Ollama with authentication."""
