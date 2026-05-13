@@ -4,11 +4,21 @@ import json
 import os
 from typing import List, Dict, Any, Optional
 from dotenv import load_dotenv
-from minizinc_parser import parse_model, build_parser
+from minizinc_parser import parse_model, build_parser, MINIZINC_GRAMMAR
 from lark import Lark
 
 # Load environment variables from .env file
 load_dotenv()
+
+# Grammar-based item types
+MINIZINC_ITEM_TYPES = [
+    "include_item",
+    "var_decl_item",
+    "assign_item",
+    "constraint_item",
+    "solve_item",
+    "output_item",
+]
 
 class OllamaClient:
     """Client for Ollama API to query open-source LLMs."""
@@ -176,36 +186,52 @@ Respond with only a number between 0 and 1."""
 
 
 class MCTSNode:
-    def __init__(self, partial_ast: Dict[str, Any], parent: Optional['MCTSNode'] = None, nl_prompt: str = ""):
+    def __init__(self, partial_ast: Dict[str, Any], parent: Optional['MCTSNode'] = None, nl_prompt: str = "", llm_client: Optional[OllamaClient] = None):
         self.partial_ast = partial_ast  # Current AST state
         self.parent = parent
         self.children: List['MCTSNode'] = []
         self.visits = 0
         self.value = 0.0
         self.nl_prompt = nl_prompt
+        self.llm_client = llm_client
         self.untried_actions: List[Any] = self.get_possible_actions()
 
     def get_possible_actions(self) -> List[Any]:
-        """Get valid grammar productions to expand the current partial AST."""
-        # Check what's missing in the current model
+        """Get valid grammar-based actions to expand the current partial AST."""
         items = self.partial_ast.get('items', [])
-        item_types = set(item.get('type') for item in items)
+        item_types_present = set(item.get('type') for item in items)
         
-        actions = []
-        if 'var_decl' not in item_types:
-            actions.append("add_var_decl")
-        if 'constraint' not in item_types:
-            actions.append("add_constraint")
-        if 'solve' not in item_types:
-            actions.append("add_solve")
+        # Determine which actions are possible (based on MiniZinc grammar constraints)
+        possible_actions = []
         
-        return actions
+        # var_decl_item: can add multiple
+        possible_actions.append("add_var_decl_item")
+        
+        # assign_item: can add multiple
+        possible_actions.append("add_assign_item")
+        
+        # constraint_item: can add multiple
+        possible_actions.append("add_constraint_item")
+        
+        # solve_item: must have exactly one (if model is to be complete)
+        if 'solve_item' not in item_types_present:
+            possible_actions.append("add_solve_item")
+        
+        # include_item: optional, can add multiple
+        possible_actions.append("add_include_item")
+        
+        # output_item: optional, can add at most one
+        if 'output_item' not in item_types_present:
+            possible_actions.append("add_output_item")
+        
+        return possible_actions
 
     def is_terminal(self) -> bool:
         """Check if this node represents a complete MiniZinc model."""
         items = self.partial_ast.get('items', [])
         item_types = set(item.get('type') for item in items)
-        return 'solve' in item_types
+        # A model is terminal when it has at least one solve_item
+        return 'solve_item' in item_types
 
     def expand(self) -> 'MCTSNode':
         """Expand by choosing an untried action."""
@@ -213,7 +239,7 @@ class MCTSNode:
             return self  # No more actions
         action = self.untried_actions.pop(0)
         new_ast = self.apply_action(action)
-        child = MCTSNode(new_ast, self, self.nl_prompt)
+        child = MCTSNode(new_ast, self, self.nl_prompt, self.llm_client)
         self.children.append(child)
         return child
 
@@ -224,22 +250,205 @@ class MCTSNode:
             new_ast['items'] = []
         new_ast['items'] = new_ast['items'].copy()
         
-        if action == "add_var_decl":
-            new_ast['items'].append({
-                "type": "var_decl",
-                "name": "x",
-                "decl": {"type": "var_range", "lo": 1, "hi": 3},
-                "value": None
-            })
-        elif action == "add_constraint":
-            new_ast['items'].append({
-                "type": "constraint",
-                "expr": {"type": "binop", "op": ">", "left": "x", "right": 1}
-            })
-        elif action == "add_solve":
-            new_ast['items'].append({"type": "solve", "mode": "satisfy"})
+        if self.llm_client:
+            # Use LLM to generate varied AST node, passing current AST context
+            ast_node = self.generate_ast_node(action, self.partial_ast)
+            if ast_node:
+                new_ast['items'].append(ast_node)
+            else:
+                # Fallback to hardcoded
+                self.fallback_apply_action(action, new_ast)
+        else:
+            # No LLM, use hardcoded
+            self.fallback_apply_action(action, new_ast)
         
         return new_ast
+    
+    def generate_ast_node(self, action: str, current_ast: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Use LLM to generate an AST node for the given action by generating MiniZinc code."""
+        # Get existing variables from AST to avoid naming conflicts
+        existing_vars = []
+        for item in current_ast.get('items', []):
+            if item.get('type') in ['var_decl_item', 'assign_item']:
+                if 'name' in item:
+                    existing_vars.append(item['name'])
+        
+        existing_str = f"\nExisting variables: {', '.join(existing_vars)}" if existing_vars else ""
+        
+        if action == "add_var_decl_item":
+            prompt = f"""Given the MiniZinc specification: "{self.nl_prompt}"{existing_str}
+            
+Generate a single NEW MiniZinc variable declaration statement. Examples of valid declarations:
+- var 1..10: x;
+- var 0..100: count;
+- var {{"red", "green", "blue"}}: color;
+- var 1..20: y = 5;
+
+Create a diverse and appropriate variable declaration for this specification that is DIFFERENT from the existing variables.
+Respond with ONLY the variable declaration statement (including the semicolon)."""
+        elif action == "add_constraint_item":
+            prompt = f"""Given the MiniZinc specification: "{self.nl_prompt}"{existing_str}
+            
+Generate a single NEW MiniZinc constraint statement. Examples of valid constraints:
+- constraint x > 5;
+- constraint x + y <= 20;
+- constraint x in 1..10;
+- constraint x != y;
+- constraint forall(i in 1..5)(x[i] < 100);
+
+Create a diverse and appropriate constraint for this specification that is DIFFERENT from previous constraints.
+Respond with ONLY the constraint statement (including the semicolon)."""
+        elif action == "add_solve_item":
+            prompt = f"""Given the MiniZinc specification: "{self.nl_prompt}"
+            
+Generate a single MiniZinc solve statement. Valid examples:
+- solve satisfy;
+- solve maximize x;
+- solve minimize cost;
+
+Determine if this specification requires satisfaction, maximization, or minimization based on the intent, and generate the appropriate solve statement.
+Respond with ONLY the solve statement (including the semicolon)."""
+        elif action == "add_assign_item":
+            prompt = f"""Given the MiniZinc specification: "{self.nl_prompt}"{existing_str}
+            
+Generate a single NEW MiniZinc assignment statement. Examples:
+- obj = sum(x);
+- result = x + y;
+- cost = 2 * x + 3 * y;
+
+Create a meaningful and DIVERSE assignment for this specification.
+Respond with ONLY the assignment statement (including the semicolon)."""
+        elif action == "add_output_item":
+            prompt = f"""Given the MiniZinc specification: "{self.nl_prompt}"
+            
+Generate a single MiniZinc output statement. Examples:
+- output [show(x)];
+- output ["Solution: ", show(x), "\\n"];
+- output [show_array(solution)];
+
+Create an appropriate output statement for this specification.
+Respond with ONLY the output statement (including the semicolon)."""
+        elif action == "add_include_item":
+            prompt = f"""Given the MiniZinc specification: "{self.nl_prompt}"
+            
+Generate a single MiniZinc include statement. Valid examples:
+- include "globals.mzn";
+- include "cumulative.mzn";
+
+Suggest a relevant MiniZinc library to include.
+Respond with ONLY the include statement (including the semicolon)."""
+        else:
+            return None
+        
+        response = self.llm_client.generate(prompt).strip()
+        if not response:
+            return None
+        
+        # Parse the generated MiniZinc code back into AST
+        try:
+            # Wrap in a minimal model to parse
+            minizinc_code = f"model item {response}"
+            # Try to parse with the existing parser
+            parser = build_parser()
+            # Create a minimal model containing just this item
+            ast = parser.parse(f"{response}")
+            
+            # Extract the item from the parsed result
+            if isinstance(ast, dict) and ast.get('type') == 'model':
+                items = ast.get('items', [])
+                if items:
+                    return items[0]  # Return the first (and should be only) item
+        except Exception as e:
+            # If parsing fails, try to construct from the response
+            pass
+        
+        # Fallback: try to construct AST from the code string heuristically
+        return self._construct_ast_from_code(response, action)
+    
+    def _construct_ast_from_code(self, code: str, action: str) -> Optional[Dict[str, Any]]:
+        """Construct AST from generated MiniZinc code when parsing fails."""
+        code = code.rstrip(';').strip()
+        
+        if action == "add_var_decl_item":
+            # Try to parse: var <range>: <name> [= <value>]
+            import re
+            match = re.match(r'var\s+(\d+)\.\.(\d+)\s*:\s*(\w+)(?:\s*=\s*(.+))?', code)
+            if match:
+                lo, hi, name, value = match.groups()
+                return {
+                    "type": "var_decl_item",
+                    "decl": {"type": "var_range", "lo": int(lo), "hi": int(hi)},
+                    "name": name,
+                    "value": int(value) if value else None
+                }
+        elif action == "add_constraint_item":
+            # Generic constraint parsing
+            return {
+                "type": "constraint_item",
+                "expr": {"type": "binop", "op": "==", "left": "x", "right": 1}
+            }
+        elif action == "add_solve_item":
+            if "maximize" in code.lower():
+                return {"type": "solve_item", "mode": "maximize", "expr": 1}
+            elif "minimize" in code.lower():
+                return {"type": "solve_item", "mode": "minimize", "expr": 1}
+            else:
+                return {"type": "solve_item", "mode": "satisfy"}
+        elif action == "add_assign_item":
+            import re
+            match = re.match(r'(\w+)\s*=\s*(.+)', code)
+            if match:
+                name, value = match.groups()
+                return {
+                    "type": "assign_item",
+                    "name": name,
+                    "value": value
+                }
+        elif action == "add_output_item":
+            return {"type": "output_item", "expr": code}
+        elif action == "add_include_item":
+            import re
+            match = re.search(r'"([^"]+)"', code)
+            if match:
+                return {"type": "include_item", "path": match.group(1)}
+        
+        return None
+    
+    def fallback_apply_action(self, action: str, new_ast: Dict[str, Any]):
+        """Fallback hardcoded action application based on grammar."""
+        if action == "add_var_decl_item":
+            new_ast['items'].append({
+                "type": "var_decl_item",
+                "decl": {"type": "var_range", "lo": 1, "hi": 3},
+                "name": "x",
+                "value": None
+            })
+        elif action == "add_constraint_item":
+            new_ast['items'].append({
+                "type": "constraint_item",
+                "expr": {"type": "binop", "op": ">", "left": "x", "right": 1}
+            })
+        elif action == "add_solve_item":
+            new_ast['items'].append({
+                "type": "solve_item",
+                "mode": "satisfy"
+            })
+        elif action == "add_assign_item":
+            new_ast['items'].append({
+                "type": "assign_item",
+                "name": "y",
+                "value": 5
+            })
+        elif action == "add_output_item":
+            new_ast['items'].append({
+                "type": "output_item",
+                "expr": {"type": "call", "name": "show", "args": ["x"]}
+            })
+        elif action == "add_include_item":
+            new_ast['items'].append({
+                "type": "include_item",
+                "path": "globals.mzn"
+            })
 
     def best_child(self, c: float = 1.4) -> 'MCTSNode':
         """Select the best child using UCT formula."""
@@ -256,7 +465,7 @@ class MCTSNode:
 
 class MCTS:
     def __init__(self, root_ast: Dict[str, Any], nl_prompt: str = "", llm_client: Optional[OllamaClient] = None, log: bool = False):
-        self.root = MCTSNode(root_ast, nl_prompt=nl_prompt)
+        self.root = MCTSNode(root_ast, nl_prompt=nl_prompt, llm_client=llm_client)
         self.nl_prompt = nl_prompt
         self.llm_client = llm_client
         self.log = log
@@ -301,7 +510,7 @@ class MCTS:
             
             current_node.untried_actions.remove(action)
             new_ast = current_node.apply_action(action)
-            current_node = MCTSNode(new_ast, current_node.parent, self.nl_prompt)
+            current_node = MCTSNode(new_ast, current_node, self.nl_prompt, self.llm_client)
             depth += 1
         
         # Generate code and evaluate with LLM if available
@@ -350,7 +559,7 @@ def generate_code(nl_prompt: str, iterations: int = 1000, use_llm: bool = False,
             print(f"Warning: Could not connect to Ollama: {e}")
             llm_client = None
     
-    mcts = MCTS(root_ast, nl_prompt=nl_prompt, llm_client=llm_client, log=False)
+    mcts = MCTS(root_ast, nl_prompt=nl_prompt, llm_client=llm_client, log=True)
     best_node = mcts.search(iterations)
     return ast_to_code(best_node.partial_ast)
 
@@ -368,7 +577,25 @@ def ast_to_code(ast: Dict[str, Any]) -> str:
 def item_to_code(item: Dict[str, Any]) -> str:
     """Convert an item dict to code string."""
     itype = item['type']
-    if itype == 'var_decl':
+    if itype == 'var_decl_item':
+        decl_str = ti_expr_to_code(item['decl'])
+        name = item['name']
+        value_str = f" = {expr_to_str(item['value'])}" if item.get('value') is not None else ""
+        return f"{decl_str}: {name}{value_str}"
+    elif itype == 'assign_item':
+        return f"{item['name']} = {expr_to_str(item['value'])}"
+    elif itype == 'constraint_item':
+        return f"constraint {expr_to_str(item['expr'])}"
+    elif itype == 'solve_item':
+        mode = item['mode']
+        expr_str = f" {expr_to_str(item['expr'])}" if 'expr' in item else ""
+        return f"solve {mode}{expr_str}"
+    elif itype == 'output_item':
+        return f"output {expr_to_str(item['expr'])}"
+    elif itype == 'include_item':
+        return f"include {item['path']}"
+    # Legacy support for old type names
+    elif itype == 'var_decl':
         decl_str = ti_expr_to_code(item['decl'])
         name = item['name']
         value_str = f" = {expr_to_str(item['value'])}" if item.get('value') is not None else ""
@@ -454,7 +681,7 @@ if __name__ == "__main__":
     
     print("Generating MiniZinc code with LLM guidance...")
     print(f"NL Prompt: {nl}")
-    code = generate_code(nl, iterations=10, use_llm=True, ollama_model=os.getenv('OLLAMA_MODEL'))
+    code = generate_code(nl, iterations=100, use_llm=True, ollama_model=os.getenv('OLLAMA_MODEL'))
     print("Generated code:")
     print(code)
     print()
