@@ -2,7 +2,7 @@ import math
 import json
 import requests
 from typing import List, Dict, Tuple, Any, Optional
-from minizinc_parser import parse_model
+from minizinc_parser import parse_model, ast_to_json_serializable
 
 # =====================================================================
 # 1. Core MCTS Implementation
@@ -107,8 +107,10 @@ class NeurosymbolicMCTS:
 class MiniZincEnvironment:
     """Handles the symbolic derivation of MiniZinc Code and evaluates it via AST matching."""
     
-    def __init__(self, target_prompt: str):
+    def __init__(self, target_prompt: str, llm_judge: 'OllamaLLMHeuristic'):
         self.target_prompt = target_prompt
+        self.llm_judge = llm_judge # Inject the LLM Judge
+        
         # Simplified EBNF Grammar mapping
         self.grammar = {
             "<Model>": [[ "<VarDecl>", " ", "<Constraint>", " ", "<Solve>" ]],
@@ -143,62 +145,28 @@ class MiniZincEnvironment:
 
     def compute_reward(self, state: tuple) -> float:
         """
-        Formally evaluates code correctness by parsing it into an AST 
-        and traversing the structure to verify semantics.
+        First guarantees syntactic validity using Lark.
+        If valid, uses the LLM to judge semantic correctness against the prompt.
         """
         code = "".join(state)
         
-        # 1. Syntactic check (Base Reward for valid parsing)
+        # 1. Syntactic Gatekeeper
         try:
             ast = parse_model(code)
         except Exception:
-            # If the generated code is syntactically malformed, assign 0.
+            # Code is syntactically invalid - zero reward
             return 0.0
             
-        reward = 0.1  # Initial reward for generating syntactically valid code
+        # 2. Semantic Evaluation via LLM Judge
+        reward = self.llm_judge.evaluate_code(
+            prompt=self.target_prompt, 
+            code=code, 
+            ast=ast
+        )
         
-        # Tracking flags for semantic components
-        has_var_x_int = False
-        has_constraint_x_gt_5 = False
-        has_solve_satisfy = False
-
-        # 2. Semantic Analysis over the AST Items
-        for item in ast.get("items",[]):
-            
-            # Check for: var int: x;
-            if item["type"] == "var_decl":
-                if item["name"] == "x":
-                    decl_str = str(item.get("decl", "")).lower()
-                    if "int" in decl_str:
-                        has_var_x_int = True
-
-            # Check for: constraint x > 5; or constraint 5 < x;
-            elif item["type"] == "constraint":
-                expr = item.get("expr", {})
-                if isinstance(expr, dict) and expr.get("type") == "binop":
-                    op = expr.get("op")
-                    left = expr.get("left")
-                    right = expr.get("right")
-                    
-                    # Ensure commutativity is respected (x > 5 or 5 < x)
-                    if (op == ">" and left == "x" and right == 5) or \
-                       (op == "<" and left == 5 and right == "x"):
-                        has_constraint_x_gt_5 = True
-
-            # Check for: solve satisfy;
-            elif item["type"] == "solve":
-                if item.get("mode") == "satisfy":
-                    has_solve_satisfy = True
-
-        # 3. Aggregate Reward
-        if has_var_x_int:
-            reward += 0.3
-        if has_constraint_x_gt_5:
-            reward += 0.4
-        if has_solve_satisfy:
-            reward += 0.2
-
-        return min(reward, 1.0) # Maximum reward is capped at 1.0
+        # 3. Ensure a syntactically valid script always gets at least a baseline reward (0.1)
+        #    This prevents the MCTS from abandoning perfectly valid parsing branches entirely.
+        return max(0.1, min(reward, 1.0))
 
 # =====================================================================
 # 3. Neural Component: Local Ollama LLM Heuristic
@@ -289,25 +257,74 @@ class OllamaLLMHeuristic:
         # Save to cache and return
         self.cache[cache_key] = (action_probs, state_value)
         return action_probs, state_value
+    
+    def evaluate_code(self, prompt: str, code: str, ast: dict) -> float:
+        """
+        LLM-as-a-Judge: Evaluates the terminal MiniZinc code against the natural language intent.
+        """
+        # Cache terminal state evaluations to save massive amounts of compute during MCTS rollouts
+        cache_key = ("eval", code)
+        if cache_key in self.cache:
+            return self.cache[cache_key]
+
+        sys_instruction = (
+            "You are a strict, expert MiniZinc code evaluator. "
+            "You will be given a User Intent, the generated MiniZinc Code, and its corresponding parsed AST (Abstract Syntax Tree). "
+            "Your job is to determine how accurately the code implements the User Intent. "
+            "Return a JSON object with a single key 'reward' mapping to a float between 0.0 and 1.0. "
+            "1.0 means perfect semantic match. 0.0 means it completely fails to fulfill the user's requirements."
+        )
+        
+        ast_json = ast_to_json_serializable(ast)
+        user_msg = (
+            f"User Intent: {prompt}\n"
+            f"MiniZinc Code: {code}\n"
+            f"Parsed AST: {json.dumps(ast_json)}\n"
+        )
+        
+        payload = {
+            "model": self.model,
+            "prompt": f"{sys_instruction}\n\n{user_msg}",
+            "format": "json",
+            "stream": False,
+            "options": {
+                "temperature": 0.0 # Strict deterministic evaluation
+            }
+        }
+        
+        try:
+            response = requests.post(self.api_url, json=payload, timeout=30)
+            response.raise_for_status()
+            
+            llm_output = json.loads(response.json()["response"])
+            reward = float(llm_output.get("reward", 0.0))
+            
+            # Bound the reward
+            reward = max(0.0, min(reward, 1.0))
+
+        except Exception as e:
+            # print(f"  [Evaluation Error]: {e}")
+            # If the LLM fails, return a baseline reward indicating syntax passed but semantics are unknown
+            reward = 0.1 
+
+        self.cache[cache_key] = reward
+        return reward
 
 
 # =====================================================================
 # 4. Test Execution
 # =====================================================================
 if __name__ == "__main__":
-    # Define the user's Natural Language query
-    nl_prompt = "Write a MiniZinc model to find an integer x that is strictly greater than 5 and satisfy the model."
-    
+    nl_prompt = "Write a MiniZinc model to find an integer y that is exactly equal to 10."
     print(f"NL Prompt: '{nl_prompt}'")
-    print("Ensure your local Ollama instance is running (e.g., 'ollama run llama3')\n")
 
-    # Initialize environment and the Ollama Heuristic
-    # Note: Ensure the model string matches the one you have downloaded in Ollama!
-    env = MiniZincEnvironment(target_prompt=nl_prompt)
+    # 1. Initialize the Neural component (LLM)
     llm = OllamaLLMHeuristic(prompt=nl_prompt, model="llama3") 
     
-    # Run the Neurosymbolic MCTS
-    # Note: num_simulations set to 20 to keep the test run reasonably fast with a local LLM
+    # 2. Initialize the Environment, passing the LLM in as the judge
+    env = MiniZincEnvironment(target_prompt=nl_prompt, llm_judge=llm)
+    
+    # 3. Instantiate MCTS
     mcts = NeurosymbolicMCTS(env=env, llm_policy=llm, c_puct=1.5)
     
     initial_ast = ("<Model>",)

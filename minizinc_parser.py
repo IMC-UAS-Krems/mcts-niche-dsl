@@ -1,4 +1,4 @@
-from lark import Lark, Transformer, Token
+from lark import Lark, Transformer, Token, Tree
 
 MINIZINC_GRAMMAR = r"""
 start: model
@@ -134,6 +134,16 @@ def parse_model(text: str):
     tree = parser.parse(text)
     return tree.children[0] if tree.data == 'start' else tree
 
+def ast_to_json_serializable(node):
+    if isinstance(node, Tree):
+        return {"data": node.data, "children": [ast_to_json_serializable(child) for child in node.children]}
+    if isinstance(node, Token):
+        return str(node)
+    if isinstance(node, dict):
+        return {k: ast_to_json_serializable(v) for k, v in node.items()}
+    if isinstance(node, list):
+        return [ast_to_json_serializable(v) for v in node]
+    return node
 
 if __name__ == "__main__":
     import argparse
