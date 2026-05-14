@@ -3,6 +3,10 @@ import json
 import requests
 from typing import List, Dict, Tuple, Any, Optional
 from minizinc_parser import parse_model, ast_to_json_serializable
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # =====================================================================
 # 1. Core MCTS Implementation
@@ -179,7 +183,9 @@ class OllamaLLMHeuristic:
         self.prompt = prompt
         self.model = model
         self.api_url = "http://localhost:11434/api/generate"
+        self.token = os.getenv("OLLAMA_API_KEY") # Optional API key for authentication
         self.cache = {} # Cache to store LLM responses for seen states
+        self.headers = {"Authorization": f"Bearer {self.token}"} if self.token else {}
 
     def predict_and_evaluate(self, state: Tuple[str, ...], valid_actions: List[Tuple[str, ...]]) -> Tuple[Dict[Tuple[str, ...], float], float]:
         # 1. Short-circuit: If there's only 1 valid grammar rule, bypass the LLM completely.
@@ -202,6 +208,7 @@ class OllamaLLMHeuristic:
             "Return a JSON object with strictly two keys:\n"
             "1. 'action_scores': A dictionary mapping the action index (string) to a score (1.0 to 10.0) based on how likely it solves the intent.\n"
             "2. 'state_value': A float between 0.0 and 1.0 estimating how promising the current Partial Code is.\n"
+            "Score 0.0 if the variable name is wrong, or if the integer value does not match the prompt.\n"
         )
         
         user_msg = (
@@ -222,7 +229,7 @@ class OllamaLLMHeuristic:
 
         try:
             # print(f"  [LLM Requesting...] Evaluating {len(valid_actions)} actions...")
-            response = requests.post(self.api_url, json=payload, timeout=30)
+            response = requests.post(self.api_url, headers=self.headers, json=payload, timeout=30)
             response.raise_for_status()
             
             # Extract JSON output
@@ -298,12 +305,14 @@ class OllamaLLMHeuristic:
             
             llm_output = json.loads(response.json()["response"])
             reward = float(llm_output.get("reward", 0.0))
+            print(f"[DEBUG JUDGE] Code: {''.join(code)}")
+            print(f"[DEBUG JUDGE] Reward Assigned: {reward}")
             
             # Bound the reward
             reward = max(0.0, min(reward, 1.0))
 
         except Exception as e:
-            # print(f"  [Evaluation Error]: {e}")
+            print(f"  [Evaluation Error]: {e}")
             # If the LLM fails, return a baseline reward indicating syntax passed but semantics are unknown
             reward = 0.1 
 
@@ -318,8 +327,10 @@ if __name__ == "__main__":
     nl_prompt = "Write a MiniZinc model to find an integer y that is exactly equal to 10."
     print(f"NL Prompt: '{nl_prompt}'")
 
+    model = os.getenv("OLLAMA_MODEL", "llama3")
+    print(f"Using Ollama Model: {model}")
     # 1. Initialize the Neural component (LLM)
-    llm = OllamaLLMHeuristic(prompt=nl_prompt, model="llama3") 
+    llm = OllamaLLMHeuristic(prompt=nl_prompt, model=model) 
     
     # 2. Initialize the Environment, passing the LLM in as the judge
     env = MiniZincEnvironment(target_prompt=nl_prompt, llm_judge=llm)
@@ -328,7 +339,7 @@ if __name__ == "__main__":
     mcts = NeurosymbolicMCTS(env=env, llm_policy=llm, c_puct=1.5)
     
     initial_ast = ("<Model>",)
-    final_code = mcts.generate_code(initial_ast, max_steps=20, num_simulations=20)
+    final_code = mcts.generate_code(initial_ast, max_steps=200, num_simulations=200)
     
     print("\n--- Final Generated MiniZinc Code ---")
     print(final_code)
