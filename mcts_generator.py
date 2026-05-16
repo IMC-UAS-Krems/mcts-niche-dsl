@@ -114,22 +114,43 @@ class NeurosymbolicMCTS:
 class MiniZincEnvironment:
     """Handles the symbolic derivation of MiniZinc Code and evaluates it via AST matching."""
     
-    def __init__(self, target_prompt: str, llm_judge: 'OllamaLLMHeuristic'):
+    def __init__(self, target_prompt: str, llm_judge: 'OllamaLLMHeuristic', extracted_entities: dict = None):
         self.target_prompt = target_prompt
-        self.llm_judge = llm_judge # Inject the LLM Judge
+        self.llm_judge = llm_judge
         
-        # Simplified EBNF Grammar mapping
+        # 1. Parse extracted entities
+        extracted_entities = extracted_entities or {}
+        idents = extracted_entities.get("identifiers", [])
+        int_lits = extracted_entities.get("integer_literals", [])
+        
+        # 2. Provide safe fallbacks if the LLM extraction failed or found nothing
+        if not idents:
+            idents = ["x", "y"]
+        if not int_lits:
+            int_lits = ["0", "1", "5", "10"]
+            
+        # Ensure all elements are strings for the grammar
+        idents = [str(i) for i in idents]
+        int_lits = [str(val) for val in int_lits]
+        
+        print(f"[Environment] Bound Identifiers: {idents}")
+        print(f"[Environment] Bound Literals: {int_lits}")
+
+        # 3. Dynamically construct the grammar
         self.grammar = {
             "<Model>": [[ "<VarDecl>", " ", "<Constraint>", " ", "<Solve>" ]],
             "<VarDecl>": [[ "var ", "<Type>", ": ", "<Ident>", ";" ]],
             "<Type>": [[ "int" ], [ "bool" ]],
-            "<Ident>": [[ "x" ], [ "y" ]],
+            # INJECTED IDENTIFIERS
+            "<Ident>": [[i] for i in idents], 
             "<Constraint>": [[ "constraint ", "<Expr>", " ", "<Op>", " ", "<Expr>", ";" ]],
             "<Expr>": [[ "<Ident>" ], [ "<IntLit>" ]],
-            "<IntLit>": [[ "0" ], [ "5" ], [ "10" ]],
+            # INJECTED LITERALS
+            "<IntLit>": [[val] for val in int_lits], 
             "<Op>": [[ ">" ], [ "<" ], [ "==" ]],
             "<Solve>": [[ "solve satisfy;" ], [ "solve maximize ", "<Ident>", ";" ]]
         }
+
 
     def _get_leftmost_nt(self, state: tuple) -> int:
         for i, symbol in enumerate(state):
@@ -309,7 +330,7 @@ class OllamaLLMHeuristic:
             response = requests.post(self.api_url, json=payload, timeout=30)
             response.raise_for_status()
             
-            llm_output = json.loads(response.json()["response"])
+            llm_output = json.loads(response.json()["thinking"])
             reward = float(llm_output.get("reward", 0.0))
             # print(f"[DEBUG JUDGE] Code: {''.join(code)}")
             # print(f"[DEBUG JUDGE] Reward Assigned: {reward}")
@@ -324,13 +345,52 @@ class OllamaLLMHeuristic:
 
         self.cache[cache_key] = reward
         return reward
+    
+    def extract_entities(self, prompt: str) -> dict:
+        """
+        Pre-processes the prompt to extract variable names and literals.
+        Returns a dictionary like {"identifiers": ["y"], "integer_literals": ["10"]}
+        """
+        sys_instruction = (
+            "You are a helpful assistant for a constraint programming system. "
+            "Extract the variable names and integer literal values from the given user prompt. "
+            "Return a JSON object with strictly two keys:\n"
+            "- 'identifiers': A list of strings representing variable names (e.g., ['x', 'y']).\n"
+            "- 'integer_literals': A list of strings representing integer numbers (e.g., ['5', '10']).\n"
+            "If none are found, return empty lists."
+        )
+        
+        payload = {
+            "model": self.model,
+            "prompt": f"{sys_instruction}\n\nUser Prompt: {prompt}",
+            "format": "json",
+            "stream": False,
+            "options": {
+                "temperature": 0.0 # Deterministic extraction
+            }
+        }
+        
+        print("\n[Extraction] Analyzing prompt for entities...")
+        try:
+            response = requests.post(self.api_url, json=payload, timeout=30)
+            response.raise_for_status()
+            extracted = json.loads(response.json()["thinking"])
+            
+            # Ensure lists are returned even if the LLM hallucinates format
+            return {
+                "identifiers": extracted.get("identifiers", []),
+                "integer_literals": extracted.get("integer_literals", [])
+            }
+        except Exception as e:
+            print(f"[Extraction Error]: {e}")
+            return {"identifiers": [], "integer_literals": []}
 
 
 # =====================================================================
 # 4. Test Execution
 # =====================================================================
 if __name__ == "__main__":
-    #nl_prompt = "Write a MiniZinc model to find an integer y that is exactly equal to 10."
+    # nl_prompt = "Write a MiniZinc model to find an integer a that is exactly equal to 10."
     nl_prompt = "Declare two booleans a and c, constrain a or c, and satisfy."
     print(f"NL Prompt: '{nl_prompt}'")
 
@@ -339,8 +399,10 @@ if __name__ == "__main__":
     # 1. Initialize the Neural component (LLM)
     llm = OllamaLLMHeuristic(prompt=nl_prompt, model=model) 
     
+    extracted_data = llm.extract_entities(prompt=nl_prompt)
+
     # 2. Initialize the Environment, passing the LLM in as the judge
-    env = MiniZincEnvironment(target_prompt=nl_prompt, llm_judge=llm)
+    env = MiniZincEnvironment(target_prompt=nl_prompt, llm_judge=llm, extracted_entities=extracted_data)
     
     # 3. Instantiate MCTS
     mcts = NeurosymbolicMCTS(env=env, llm_policy=llm, c_puct=1.5)
