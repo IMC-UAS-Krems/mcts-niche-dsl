@@ -132,23 +132,41 @@ class MiniZincEnvironment:
         # Ensure all elements are strings for the grammar
         idents = [str(i) for i in idents]
         int_lits = [str(val) for val in int_lits]
+        self.extracted_idents = idents  # Store for heuristic use in get_valid_actions
         
         print(f"[Environment] Bound Identifiers: {idents}")
         print(f"[Environment] Bound Literals: {int_lits}")
 
         # 3. Dynamically construct the grammar
         self.grammar = {
-            "<Model>": [[ "<VarDecl>", " ", "<Constraint>", " ", "<Solve>" ]],
-            "<VarDecl>": [[ "var ", "<Type>", ": ", "<Ident>", ";" ]],
-            "<Type>": [[ "int" ], [ "bool" ]],
-            # INJECTED IDENTIFIERS
+            # 1. Enforce strict ordering: All variables, THEN all constraints, THEN solve.
+            "<Model>": [
+                ["<VarDecls>", "<Constraints>", "<Solve>"]
+            ],
+            
+            # 2. Recursive Variables (1 or more)
+            "<VarDecls>": [
+                ["<VarDecl>", " ", "<VarDecls>"], # Add another variable
+                ["<VarDecl>", " "]                # Base case: move on to constraints
+            ],
+            
+            # 3. Recursive Constraints (1 or more)
+            "<Constraints>": [
+                ["<Constraint>", " ", "<Constraints>"], # Add another constraint
+                ["<Constraint>", " "]                   # Base case: move on to solve
+            ],
+            
+            "<VarDecl>": [["var ", "<Type>", ": ", "<Ident>", ";"]],
+            "<Constraint>": [["constraint ", "<Expr>", " ", "<Op>", " ", "<Expr>", ";"]],
+            
+            "<Type>": [["int"], ["bool"]],
             "<Ident>": [[i] for i in idents], 
-            "<Constraint>": [[ "constraint ", "<Expr>", " ", "<Op>", " ", "<Expr>", ";" ]],
-            "<Expr>": [[ "<Ident>" ], [ "<IntLit>" ]],
-            # INJECTED LITERALS
-            "<IntLit>": [[val] for val in int_lits], 
-            "<Op>": [[ ">" ], [ "<" ], [ "==" ]],
-            "<Solve>": [[ "solve satisfy;" ], [ "solve maximize ", "<Ident>", ";" ]]
+            "<IntLit>": [[val] for val in int_lits],
+            
+            "<Expr>": [["<Ident>"], ["<IntLit>"]],
+            "<Op>": [["=="], ["<"], [">"], ["!="]],
+            
+            "<Solve>": [["solve satisfy;"], ["solve maximize ", "<Ident>", ";"]]
         }
 
 
@@ -160,8 +178,25 @@ class MiniZincEnvironment:
 
     def get_valid_actions(self, state: tuple) -> list:
         idx = self._get_leftmost_nt(state)
-        if idx == -1: return[]
+        if idx == -1: return []
+        
         nt = state[idx]
+        
+        # HEURISTIC: Prevent runaway recursion for variables
+        if nt == "<VarDecls>":
+            # Count how many variables we've already generated
+            var_count = sum(1 for s in state if s == "<VarDecl>")
+            # If we've reached the number of extracted identifiers, force the base case
+            if var_count >= len(self.extracted_idents): 
+                return [tuple(["<VarDecl>", " "])]
+                
+        # HEURISTIC: Prevent runaway recursion for constraints
+        if nt == "<Constraints>":
+            # Arbitrary limit: max 3 constraints to keep search tractable
+            constraint_count = sum(1 for s in state if s == "<Constraint>")
+            if constraint_count >= 3:
+                return [tuple(["<Constraint>", " "])]
+                
         return [tuple(prod) for prod in self.grammar[nt]]
 
     def apply_action(self, state: tuple, action: tuple) -> tuple:
@@ -408,7 +443,7 @@ if __name__ == "__main__":
     mcts = NeurosymbolicMCTS(env=env, llm_policy=llm, c_puct=1.5)
     
     initial_ast = ("<Model>",)
-    final_code = mcts.generate_code(initial_ast, max_steps=200, num_simulations=500)
+    final_code = mcts.generate_code(initial_ast, max_steps=200, num_simulations=200)
     
     print("\n--- Final Generated MiniZinc Code ---")
     print(final_code)
