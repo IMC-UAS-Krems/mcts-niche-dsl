@@ -76,10 +76,13 @@ class NeurosymbolicMCTS:
             while node.is_expanded() and not self.env.is_terminal(node.state):
                 action, node = node.get_best_child(self.c_puct)
 
+            # print(f"[DEBUG SEARCH] Node Selected: {node.state}")
             # 2. Evaluation & Expansion
             if not self.env.is_terminal(node.state):
                 valid_actions = self.env.get_valid_actions(node.state)
+                # print(f"[DEBUG SEARCH] Valid actions: {valid_actions}")
                 action_probs, value = self.llm.predict_and_evaluate(node.state, valid_actions)
+                # print(f"[DEBUG SEARCH] Action probabilities: {action_probs}, State value: {value}")
                 node.expand(action_probs, self.env)
             else:
                 # 3. Terminal Reward
@@ -231,9 +234,10 @@ class OllamaLLMHeuristic:
             # print(f"  [LLM Requesting...] Evaluating {len(valid_actions)} actions...")
             response = requests.post(self.api_url, headers=self.headers, json=payload, timeout=30)
             response.raise_for_status()
+            # print(f"[DEBUG RESPONSE] Response: {response.json()}")
             
             # Extract JSON output
-            llm_output = json.loads(response.json()["response"])
+            llm_output = json.loads(response.json()["thinking"])
             
             scores = llm_output.get("action_scores", {})
             state_value = float(llm_output.get("state_value", 0.5))
@@ -263,6 +267,8 @@ class OllamaLLMHeuristic:
 
         # Save to cache and return
         self.cache[cache_key] = (action_probs, state_value)
+        # print(f"[DEBUG PRIORS] State: {''.join(state)}")
+        # print(f"[DEBUG PRIORS] Probs: {action_probs}")
         return action_probs, state_value
     
     def evaluate_code(self, prompt: str, code: str, ast: dict) -> float:
@@ -305,8 +311,8 @@ class OllamaLLMHeuristic:
             
             llm_output = json.loads(response.json()["response"])
             reward = float(llm_output.get("reward", 0.0))
-            print(f"[DEBUG JUDGE] Code: {''.join(code)}")
-            print(f"[DEBUG JUDGE] Reward Assigned: {reward}")
+            # print(f"[DEBUG JUDGE] Code: {''.join(code)}")
+            # print(f"[DEBUG JUDGE] Reward Assigned: {reward}")
             
             # Bound the reward
             reward = max(0.0, min(reward, 1.0))
@@ -324,7 +330,8 @@ class OllamaLLMHeuristic:
 # 4. Test Execution
 # =====================================================================
 if __name__ == "__main__":
-    nl_prompt = "Write a MiniZinc model to find an integer y that is exactly equal to 10."
+    #nl_prompt = "Write a MiniZinc model to find an integer y that is exactly equal to 10."
+    nl_prompt = "Declare two booleans a and c, constrain a or c, and satisfy."
     print(f"NL Prompt: '{nl_prompt}'")
 
     model = os.getenv("OLLAMA_MODEL", "llama3")
@@ -339,7 +346,7 @@ if __name__ == "__main__":
     mcts = NeurosymbolicMCTS(env=env, llm_policy=llm, c_puct=1.5)
     
     initial_ast = ("<Model>",)
-    final_code = mcts.generate_code(initial_ast, max_steps=200, num_simulations=200)
+    final_code = mcts.generate_code(initial_ast, max_steps=200, num_simulations=500)
     
     print("\n--- Final Generated MiniZinc Code ---")
     print(final_code)

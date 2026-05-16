@@ -5,3 +5,4 @@ __pychache__/
 *.pyd
 .Python
 .env
+venv/
