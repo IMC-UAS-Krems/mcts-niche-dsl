@@ -5,6 +5,7 @@ from typing import List, Dict, Tuple, Any, Optional
 from minizinc_parser import parse_model, ast_to_json_serializable
 import os
 from dotenv import load_dotenv
+import subprocess
 
 load_dotenv()
 
@@ -70,6 +71,7 @@ class NeurosymbolicMCTS:
     def search(self, initial_state: Tuple[str, ...], num_simulations: int = 50) -> Tuple[str, ...]:
         root = MCTSNode(state=initial_state, prior_prob=1.0)
 
+        terminal_reached = False
         for _ in range(num_simulations):
             node = root
             # 1. Selection
@@ -86,10 +88,15 @@ class NeurosymbolicMCTS:
                 node.expand(action_probs, self.env)
             else:
                 # 3. Terminal Reward
+                print(f"[DEBUG SEARCH] Terminal node reached: {node.state}, evaluating reward...")
                 value = self.env.compute_reward(node.state)
+                terminal_reached = True
 
             # 4. Backpropagation
             node.backpropagate(value)
+
+        if not terminal_reached:
+            print("[MCTS Warning] No terminal state reached during simulations. Final selection may be suboptimal.")
 
         # Return the most visited action (most robust choice)
         return max(root.children.items(), key=lambda item: item[1].visit_count)[0]
@@ -124,10 +131,8 @@ class MiniZincEnvironment:
         int_lits = extracted_entities.get("integer_literals", [])
         
         # 2. Provide safe fallbacks if the LLM extraction failed or found nothing
-        if not idents:
-            idents = ["x", "y"]
-        if not int_lits:
-            int_lits = ["0", "1", "5", "10"]
+        if not idents: idents = ["x", "y", "b", "arr", "s", "z", "nums", "a", "c"]
+        if not int_lits: int_lits = ["0", "1", "2", "3", "4", "5", "6", "10"]
             
         # Ensure all elements are strings for the grammar
         idents = [str(i) for i in idents]
@@ -139,34 +144,72 @@ class MiniZincEnvironment:
 
         # 3. Dynamically construct the grammar
         self.grammar = {
-            # 1. Enforce strict ordering: All variables, THEN all constraints, THEN solve.
+            # Phased structure now includes an optional Output phase
             "<Model>": [
-                ["<VarDecls>", "<Constraints>", "<Solve>"]
+                ["<VarDecls>", "<Constraints>", "<Solve>", "<OutputOpt>"]
             ],
             
-            # 2. Recursive Variables (1 or more)
+            # --- Variables Phase ---
             "<VarDecls>": [
-                ["<VarDecl>", " ", "<VarDecls>"], # Add another variable
-                ["<VarDecl>", " "]                # Base case: move on to constraints
+                ["<VarDecl>", "<VarDecls>"], # Recursive
+                ["<VarDecl>"]                # Base case
+            ],
+            "<VarDecl>": [
+                ["var ", "<Type>", ": ", "<Ident>", ";\n"],
+                ["array[", "<IntLit>", "..", "<IntLit>", "] of var ", "<Type>", ": ", "<Ident>", ";\n"]
+            ],
+            "<Type>": [
+                ["int"], 
+                ["bool"], 
+                ["<IntLit>", "..", "<IntLit>"],             # e.g., 0..10
+                ["set of ", "<IntLit>", "..", "<IntLit>"]   # e.g., set of 1..5
             ],
             
-            # 3. Recursive Constraints (1 or more)
+            # --- Constraints Phase ---
             "<Constraints>": [
-                ["<Constraint>", " ", "<Constraints>"], # Add another constraint
-                ["<Constraint>", " "]                   # Base case: move on to solve
+                ["<Constraint>", "<Constraints>"], # Recursive
+                ["<Constraint>"]                   # Base case
+            ],
+            "<Constraint>": [
+                ["constraint ", "<Expr>", ";\n"]
             ],
             
-            "<VarDecl>": [["var ", "<Type>", ": ", "<Ident>", ";"]],
-            "<Constraint>": [["constraint ", "<Expr>", " ", "<Op>", " ", "<Expr>", ";"]],
+            # --- Expressions (Flattened to avoid infinite left-recursion) ---
+            "<Expr>": [
+                ["<Term>"],                                                                   # e.g., b
+                ["<Term>", " ", "<CompOp>", " ", "<Term>"],                                   # e.g., x > 1, x in s
+                ["<Term>", " ", "<MathOp>", " ", "<Term>", " ", "<CompOp>", " ", "<Term>"],   # e.g., x + y <= 10, x mod 2 == 0
+                ["<Term>", " ", "<LogicOp>", " ", "<Term>"],                                  # e.g., a \/ c
+                ["<Term>", " ", "<LogicOp>", " ", "<Term>", " ", "<CompOp>", " ", "<Term>"],  # e.g., b -> z > 2
+                ["sum(", "<Ident>", ")", " ", "<CompOp>", " ", "<Term>"]                      # e.g., sum(arr) == 3
+            ],
             
-            "<Type>": [["int"], ["bool"]],
-            "<Ident>": [[i] for i in idents], 
-            "<IntLit>": [[val] for val in int_lits],
+            "<Term>": [
+                ["<Ident>"], 
+                ["<IntLit>"]
+            ],
             
-            "<Expr>": [["<Ident>"], ["<IntLit>"]],
-            "<Op>": [["=="], ["<"], [">"], ["!="]],
+            # Operators
+            "<MathOp>":  [["+"], ["-"], ["*"], ["/"], ["mod"]],
+            "<CompOp>":  [[">"], ["<"], ["=="], ["!="], ["<="], [">="], ["in"]],
+            "<LogicOp>": [["->"], ["\\/"], ["/\\"]],
             
-            "<Solve>": [["solve satisfy;"], ["solve maximize ", "<Ident>", ";"]]
+            # --- Solve Phase ---
+            "<Solve>": [
+                ["solve satisfy;\n"], 
+                ["solve maximize ", "<Ident>", ";\n"],
+                ["solve minimize ", "<Ident>", ";\n"]
+            ],
+            
+            # --- Output Phase (Optional) ---
+            "<OutputOpt>": [
+                ["output ", "<Ident>", ";\n"],
+                [""]  # Empty string allows the model to omit the output statement
+            ],
+            
+            # --- Pruned Terminal Nodes ---
+            "<Ident>": [[str(i)] for i in idents],
+            "<IntLit>": [[str(val)] for val in int_lits]
         }
 
 
@@ -182,20 +225,20 @@ class MiniZincEnvironment:
         
         nt = state[idx]
         
-        # HEURISTIC: Prevent runaway recursion for variables
+        # HEURISTIC 1: Bound Variable Declarations
         if nt == "<VarDecls>":
-            # Count how many variables we've already generated
             var_count = sum(1 for s in state if s == "<VarDecl>")
-            # If we've reached the number of extracted identifiers, force the base case
-            if var_count >= len(self.extracted_idents): 
-                return [tuple(["<VarDecl>", " "])]
+            # Assuming self.extracted_idents is saved during __init__
+            max_vars = max(len(getattr(self, 'extracted_idents', [])), 3) 
+            if var_count >= max_vars:
+                return [tuple(["<VarDecl>"])] # Force base case
                 
-        # HEURISTIC: Prevent runaway recursion for constraints
+        # HEURISTIC 2: Bound Constraints
         if nt == "<Constraints>":
-            # Arbitrary limit: max 3 constraints to keep search tractable
             constraint_count = sum(1 for s in state if s == "<Constraint>")
-            if constraint_count >= 3:
-                return [tuple(["<Constraint>", " "])]
+            # Limit to 4 constraints to keep MCTS search horizon manageable
+            if constraint_count >= 4:
+                return [tuple(["<Constraint>"])] # Force base case
                 
         return [tuple(prod) for prod in self.grammar[nt]]
 
@@ -220,6 +263,31 @@ class MiniZincEnvironment:
             # Code is syntactically invalid - zero reward
             return 0.0
             
+        # We write the code to a temporary file and run `minizinc --model-check-only`
+        # This instantly catches "type error: bool compared to int"
+        try:
+            with open("temp_eval.mzn", "w") as f:
+                f.write(code)
+                
+            # Run MiniZinc in compile-only/check mode. 
+            # (Assumes 'minizinc' is installed and in your system PATH)
+            result = subprocess.run(
+                ["minizinc", "--model-check-only", "temp_eval.mzn"],
+                capture_output=True,
+                text=True,
+                timeout=2 # Prevent infinite hangs
+            )
+            
+            if result.returncode != 0:
+                # The MiniZinc compiler found a type error or semantic issue!
+                print(f"[Semantic Error Caught]: {result.stderr}")
+                return 0.0
+                
+        except Exception as e:
+            # If the subprocess fails for environmental reasons, fallback to 0.0
+            print(f"[Subprocess Error]: {e}")
+            return 0.0
+        
         # 2. Semantic Evaluation via LLM Judge
         reward = self.llm_judge.evaluate_code(
             prompt=self.target_prompt, 
@@ -426,7 +494,7 @@ class OllamaLLMHeuristic:
 # =====================================================================
 if __name__ == "__main__":
     # nl_prompt = "Write a MiniZinc model to find an integer a that is exactly equal to 10."
-    nl_prompt = "Declare two booleans a and c, constrain a or c, and satisfy."
+    nl_prompt = "Declare two booleans a and c, constrain that either a or c, and satisfy."
     print(f"NL Prompt: '{nl_prompt}'")
 
     model = os.getenv("OLLAMA_MODEL", "llama3")
@@ -443,7 +511,7 @@ if __name__ == "__main__":
     mcts = NeurosymbolicMCTS(env=env, llm_policy=llm, c_puct=1.5)
     
     initial_ast = ("<Model>",)
-    final_code = mcts.generate_code(initial_ast, max_steps=200, num_simulations=200)
+    final_code = mcts.generate_code(initial_ast, max_steps=200, num_simulations=500)
     
     print("\n--- Final Generated MiniZinc Code ---")
     print(final_code)
