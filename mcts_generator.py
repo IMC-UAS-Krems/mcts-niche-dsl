@@ -6,6 +6,8 @@ from minizinc_parser import parse_model, ast_to_json_serializable
 import os
 from dotenv import load_dotenv
 import subprocess
+import random
+
 
 load_dotenv()
 
@@ -68,6 +70,31 @@ class NeurosymbolicMCTS:
         self.llm = llm_policy
         self.c_puct = c_puct
 
+    def fast_rollout(self, state: Tuple[str, ...]) -> float:
+        """
+        Fast-forwards from a partial AST to a terminal AST by making random valid choices.
+        This allows the simulation to reach the compiler check without wasting LLM compute.
+        """
+        current_state = state
+        depth = 0
+        max_depth = 40 # Safety net to prevent infinite loops in the grammar
+        
+        while not self.env.is_terminal(current_state) and depth < max_depth:
+            valid_actions = self.env.get_valid_actions(current_state)
+            if not valid_actions:
+                break
+            
+            # Pick a random valid grammar expansion
+            action = random.choice(valid_actions)
+            current_state = self.env.apply_action(current_state, action)
+            depth += 1
+            
+        # If the rollout successfully generated a terminal string, RUN THE COMPILER CHECK
+        if self.env.is_terminal(current_state):
+            return self.env.compute_reward(current_state)
+        else:
+            return 0.0 # Failed to reach a terminal state within depth limit
+
     def search(self, initial_state: Tuple[str, ...], num_simulations: int = 50) -> Tuple[str, ...]:
         root = MCTSNode(state=initial_state, prior_prob=1.0)
 
@@ -86,6 +113,10 @@ class NeurosymbolicMCTS:
                 action_probs, value = self.llm.predict_and_evaluate(node.state, valid_actions)
                 # print(f"[DEBUG SEARCH] Action probabilities: {action_probs}, State value: {value}")
                 node.expand(action_probs, self.env)
+
+                # Instead of trusting the LLM's intermediate value, we play the code out 
+                # to completion and compile it to get the TRUE reward.
+                value = self.fast_rollout(node.state)
             else:
                 # 3. Terminal Reward
                 print(f"[DEBUG SEARCH] Terminal node reached: {node.state}, evaluating reward...")
