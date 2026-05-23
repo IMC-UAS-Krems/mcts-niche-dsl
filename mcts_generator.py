@@ -94,8 +94,37 @@ class NeurosymbolicMCTS:
             return self.env.compute_reward(current_state)
         else:
             return 0.0 # Failed to reach a terminal state within depth limit
+    
+    def fast_safe_rollout(self, state: Tuple[str, ...]) -> bool:
+        """
+        Rolls out the shortest possible completion to check for semantic viability.
+        Returns True if the stubbed completion successfully compiles.
+        """
+        current_state = state
+        depth = 0
+        max_depth = 40 
+        
+        while not self.env.is_terminal(current_state) and depth < max_depth:
+            valid_actions = self.env.get_valid_actions(current_state)
+            if not valid_actions:
+                break
+            
+            # THE MAGIC TRICK: min(..., key=len)
+            # This automatically selects base cases for recursive lists (e.g., ["<VarDecl>"] instead of ["<VarDecl>", "<VarDecls>"])
+            # It also selects the shortest expressions, instantly closing the AST.
+            safe_action = min(valid_actions, key=len)
+            
+            current_state = self.env.apply_action(current_state, safe_action)
+            depth += 1
+            
+        if self.env.is_terminal(current_state):
+            # We bypass the LLM Judge here and ONLY check if it compiles natively
+            code = "".join(current_state)
+            return self.env.check_compilation_only(code) 
+        
+        return False
 
-    def search(self, initial_state: Tuple[str, ...], num_simulations: int = 50) -> Tuple[str, ...]:
+    def search(self, initial_state: Tuple[str, ...], num_simulations: int = 50, rollout_weight: float = 0.5) -> Tuple[str, ...]:
         root = MCTSNode(state=initial_state, prior_prob=1.0)
 
         terminal_reached = False
@@ -110,21 +139,23 @@ class NeurosymbolicMCTS:
             if not self.env.is_terminal(node.state):
                 valid_actions = self.env.get_valid_actions(node.state)
                 # print(f"[DEBUG SEARCH] Valid actions: {valid_actions}")
-                action_probs, value = self.llm.predict_and_evaluate(node.state, valid_actions)
+                action_probs, llm_value = self.llm.predict_and_evaluate(node.state, valid_actions)
                 # print(f"[DEBUG SEARCH] Action probabilities: {action_probs}, State value: {value}")
                 node.expand(action_probs, self.env)
 
                 # Instead of trusting the LLM's intermediate value, we play the code out 
                 # to completion and compile it to get the TRUE reward.
-                value = self.fast_rollout(node.state)
+                rollout_value = self.fast_rollout(node.state)
+
+                final_value = (1.0 - rollout_weight) * llm_value + rollout_weight * rollout_value
             else:
                 # 3. Terminal Reward
-                print(f"[DEBUG SEARCH] Terminal node reached: {node.state}, evaluating reward...")
-                value = self.env.compute_reward(node.state)
+                # print(f"[DEBUG SEARCH] Terminal node reached: {node.state}, evaluating reward...")
+                final_value = self.env.compute_reward(node.state)
                 terminal_reached = True
 
             # 4. Backpropagation
-            node.backpropagate(value)
+            node.backpropagate(final_value)
 
         if not terminal_reached:
             print("[MCTS Warning] No terminal state reached during simulations. Final selection may be suboptimal.")
@@ -280,6 +311,24 @@ class MiniZincEnvironment:
     def is_terminal(self, state: tuple) -> bool:
         return self._get_leftmost_nt(state) == -1
 
+    def check_compilation_only(self, code: str) -> bool:
+        """Runs purely the syntactic (Lark) and semantic (MiniZinc CLI) checks."""
+        try:
+            # 1. Syntax
+            parse_model(code)
+            
+            # 2. Semantics (Type checking)
+            with open("temp_stub.mzn", "w") as f:
+                f.write(code)
+            import subprocess
+            result = subprocess.run(
+                ["minizinc", "--model-check-only", "temp_stub.mzn"],
+                capture_output=True, text=True, timeout=2
+            )
+            return result.returncode == 0
+        except Exception:
+            return False
+
     def compute_reward(self, state: tuple) -> float:
         """
         First guarantees syntactic validity using Lark.
@@ -311,12 +360,12 @@ class MiniZincEnvironment:
             
             if result.returncode != 0:
                 # The MiniZinc compiler found a type error or semantic issue!
-                print(f"[Semantic Error Caught]: {result.stderr}")
+                # print(f"[Semantic Error Caught]: {result.stderr}")
                 return 0.0
                 
         except Exception as e:
             # If the subprocess fails for environmental reasons, fallback to 0.0
-            print(f"[Subprocess Error]: {e}")
+            # print(f"[Subprocess Error]: {e}")
             return 0.0
         
         # 2. Semantic Evaluation via LLM Judge
@@ -355,8 +404,25 @@ class OllamaLLMHeuristic:
         if cache_key in self.cache:
             return self.cache[cache_key]
 
+        # Dictionary to alias cryptic symbols into semantic meaning
+        semantic_map = {
+            "\\/": "Logical OR (either/or)",
+            "/\\": "Logical AND (both)",
+            "->": "Logical Implication (if/then)",
+            "==": "Equality (exactly equal)",
+            "!=": "Inequality (not equal)"
+        }
+
         state_str = "".join(state)
-        actions_dict = {str(i): "".join(a) for i, a in enumerate(valid_actions)}
+        actions_dict = {}
+        for i, action in enumerate(valid_actions):
+            action_str = "".join(action)
+            # If the action contains a known cryptic symbol, append the explanation
+            explanation = semantic_map.get(action_str.strip(), "")
+            if explanation:
+                actions_dict[str(i)] = f"'{action_str}' ({explanation})"
+            else:
+                actions_dict[str(i)] = f"'{action_str}'"
         
         # Prepare the prompt for JSON mode
         sys_instruction = (
