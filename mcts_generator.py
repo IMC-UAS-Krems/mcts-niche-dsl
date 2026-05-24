@@ -96,29 +96,23 @@ class NeurosymbolicMCTS:
             return 0.0 # Failed to reach a terminal state within depth limit
     
     def fast_safe_rollout(self, state: Tuple[str, ...]) -> bool:
-        """
-        Rolls out the shortest possible completion to check for semantic viability.
-        Returns True if the stubbed completion successfully compiles.
-        """
         current_state = state
         depth = 0
         max_depth = 40 
         
         while not self.env.is_terminal(current_state) and depth < max_depth:
             valid_actions = self.env.get_valid_actions(current_state)
-            if not valid_actions:
-                break
+            if not valid_actions: break
             
-            # THE MAGIC TRICK: min(..., key=len)
-            # This automatically selects base cases for recursive lists (e.g., ["<VarDecl>"] instead of ["<VarDecl>", "<VarDecls>"])
-            # It also selects the shortest expressions, instantly closing the AST.
-            safe_action = min(valid_actions, key=len)
+            # Use the LLM to pick the MOST LIKELY valid action, not just the shortest.
+            # (Because the state is cached, this is extremely fast and doesn't spam the API)
+            action_probs, _ = self.llm.predict_and_evaluate(current_state, valid_actions)
+            best_action = max(action_probs, key=action_probs.get)
             
-            current_state = self.env.apply_action(current_state, safe_action)
+            current_state = self.env.apply_action(current_state, best_action)
             depth += 1
             
         if self.env.is_terminal(current_state):
-            # We bypass the LLM Judge here and ONLY check if it compiles natively
             code = "".join(current_state)
             return self.env.check_compilation_only(code) 
         
@@ -143,11 +137,15 @@ class NeurosymbolicMCTS:
                 # print(f"[DEBUG SEARCH] Action probabilities: {action_probs}, State value: {value}")
                 node.expand(action_probs, self.env)
 
-                # Instead of trusting the LLM's intermediate value, we play the code out 
-                # to completion and compile it to get the TRUE reward.
-                rollout_value = self.fast_rollout(node.state)
-
-                final_value = (1.0 - rollout_weight) * llm_value + rollout_weight * rollout_value
+                is_viable = self.fast_safe_rollout(node.state)
+                
+                if is_viable:
+                    # The prefix is semantically sound. Trust the LLM's intuition for intent.
+                    final_value = llm_value 
+                else:
+                    # The LLM guided us into a compiler error (e.g., bool == int). 
+                    # Overwrite the LLM and instantly kill this search branch.
+                    final_value = 0.0 
             else:
                 # 3. Terminal Reward
                 # print(f"[DEBUG SEARCH] Terminal node reached: {node.state}, evaluating reward...")
@@ -160,19 +158,28 @@ class NeurosymbolicMCTS:
         if not terminal_reached:
             print("[MCTS Warning] No terminal state reached during simulations. Final selection may be suboptimal.")
 
-        # Return the most visited action (most robust choice)
-        return max(root.children.items(), key=lambda item: item[1].visit_count)[0]
+        # Find the best child
+        best_action, best_child = max(root.children.items(), key=lambda item: item[1].visit_count)
+        
+        # Return both the action AND its average reward (Q-value)
+        return best_action, best_child.q_value
 
-    def generate_code(self, initial_state: Tuple[str, ...], max_steps: int = 20, num_simulations: int = 50) -> str:
+    def generate_code(self, initial_state: Tuple[str, ...], max_steps: int = 40, num_simulations: int = 50) -> str:
         current_state = initial_state
         step = 0
         
-        print(f"\n--- Starting Generation ---")
         while not self.env.is_terminal(current_state) and step < max_steps:
-            best_action = self.search(current_state, num_simulations)
+            best_action, expected_reward = self.search(current_state, num_simulations)
+            
+            # DEAD-END DETECTION
+            if expected_reward == 0.0 and step > 0:
+                print(f"\n[FATAL] MCTS realized all forward paths from this state result in compilation errors.")
+                print(f"Trapped at state: {''.join(current_state)}")
+                print("Halting generation to prevent hallucinating broken code.")
+                break
+                
             current_state = self.env.apply_action(current_state, best_action)
             step += 1
-            print(f"Step {step}: {''.join(current_state)}")
             
         return "".join(current_state)
 
@@ -265,9 +272,10 @@ class MiniZincEnvironment:
             
             # --- Output Phase (Optional) ---
             "<OutputOpt>": [
-                ["output ", "<Ident>", ";\n"],
-                [""]  # Empty string allows the model to omit the output statement
+                ["output [show(", "<Ident>", ")];\n"], 
+                [""]  
             ],
+            
             
             # --- Pruned Terminal Nodes ---
             "<Ident>": [[str(i)] for i in idents],
