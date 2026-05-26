@@ -132,20 +132,27 @@ def baseline_3_grammar_constrained(prompt: str) -> str:
     try:
         import outlines
         import torch
-    except ImportError:
-        return "Error: Please `pip install outlines transformers torch` to run Baseline 3."
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+    except ImportError as e:
+        return f"Import Error: {e}. Please run `pip install outlines transformers torch`"
 
-    # Load the exact same model weights via HuggingFace (equivalent to the Ollama Qwen model)
     model_name = "Qwen/Qwen2.5-Coder-1.5B"
     try:
-        # Load small model locally
-        model = outlines.models.transformers(model_name, device="cpu") 
+        print(f"[Baseline 3] Downloading/Loading {model_name} from HuggingFace...")
+        # Load the model natively into HuggingFace first
+        hf_model = AutoModelForCausalLM.from_pretrained(model_name, device_map="cpu")
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        
+        # Use the latest Outlines API to wrap the model
+        if hasattr(outlines, "from_transformers"):
+            model = outlines.from_transformers(hf_model, tokenizer)
+        else:
+            return "Error: Please update outlines to the latest version (`pip install -U outlines`)."
+            
     except Exception as e:
         return f"Error loading model: {e}"
 
     # We provide the Lark EBNF format (from your original MINIZINC_GRAMMAR)
-    # Note: Outlines requires a single start token and regex terminals.
-    # We use a slightly simplified version to ensure it compiles to an FSM cleanly.
     ebnf_grammar = r"""
         ?start: model
         model: var_decl constraint solve
@@ -164,16 +171,22 @@ def baseline_3_grammar_constrained(prompt: str) -> str:
     
     print("[Baseline 3] Compiling FSM from Grammar...")
     try:
-        # Compile the grammar into a logits processor
-        generator = outlines.generate.cfgen(model, ebnf_grammar)
+        # Import the CFG type wrapper from the new API
+        from outlines.types import CFG
         
-        # Run generation
         prompt_text = f"Write a MiniZinc model to fulfill this intent: {prompt}\nCode:\n"
-        sequence = generator(prompt_text, max_tokens=100)
+        
+        # NEW API: You simply call the model with the prompt and the CFG type wrapper
+        sequence = model(prompt_text, CFG(ebnf_grammar))# , max_tokens=100)
+        
+        # Clean up output parsing
+        if isinstance(sequence, list): sequence = sequence[0]
+        if "Code:\n" in sequence: sequence = sequence.split("Code:\n")[1]
+            
         return sequence
     except Exception as e:
-        return f"Outlines Generation Error: {e}"
-
+        import traceback
+        return f"Outlines Generation Error: {e}\n{traceback.format_exc()}"
 
 # =====================================================================
 # Execution & Comparison
