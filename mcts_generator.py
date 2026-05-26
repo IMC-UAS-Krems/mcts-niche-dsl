@@ -407,13 +407,20 @@ class MiniZincEnvironment:
 class OllamaLLMHeuristic:
     """Uses a local Ollama LLM to predict probabilities for valid grammar expansions."""
     
-    def __init__(self, prompt: str, model: str = "llama3"):
+    def __init__(self, prompt: str, model: str = "llama3", 
+                 dsl_name: str = "generic", dsl_description: str = "programming", 
+                 action_aliases: dict = None):
         self.prompt = prompt
         self.model = model
         self.api_url = "http://localhost:11434/api/generate"
         self.token = os.getenv("OLLAMA_API_KEY") # Optional API key for authentication
         self.cache = {} # Cache to store LLM responses for seen states
         self.headers = {"Authorization": f"Bearer {self.token}"} if self.token else {}
+
+        # --- Injected DSL Knowledge ---
+        self.dsl_name = dsl_name
+        self.dsl_description = dsl_description
+        self.action_aliases = action_aliases or {}
 
     def predict_and_evaluate(self, state: Tuple[str, ...], valid_actions: List[Tuple[str, ...]]) -> Tuple[Dict[Tuple[str, ...], float], float]:
         # 1. Short-circuit: If there's only 1 valid grammar rule, bypass the LLM completely.
@@ -425,21 +432,12 @@ class OllamaLLMHeuristic:
         if cache_key in self.cache:
             return self.cache[cache_key]
 
-        # Dictionary to alias cryptic symbols into semantic meaning
-        semantic_map = {
-            "\\/": "Logical OR (either/or)",
-            "/\\": "Logical AND (both)",
-            "->": "Logical Implication (if/then)",
-            "==": "Equality (exactly equal)",
-            "!=": "Inequality (not equal)"
-        }
-
         state_str = "".join(state)
         actions_dict = {}
         for i, action in enumerate(valid_actions):
             action_str = "".join(action)
             # If the action contains a known cryptic symbol, append the explanation
-            explanation = semantic_map.get(action_str.strip(), "")
+            explanation = self.action_aliases.get(action_str.strip(), "")
             if explanation:
                 actions_dict[str(i)] = f"'{action_str}' ({explanation})"
             else:
@@ -447,7 +445,7 @@ class OllamaLLMHeuristic:
         
         # Prepare the prompt for JSON mode
         sys_instruction = (
-            "You are a coding assistant guiding a code generator. "
+            f"You are a coding assistant guiding a {self.dsl_name} code generator. "
             "Evaluate the given 'Partial Code' against the 'User Intent'. "
             "You are provided with 'Valid Next Actions' to replace the leftmost '<...>' placeholder. "
             "Return a JSON object with strictly two keys:\n"
@@ -523,8 +521,8 @@ class OllamaLLMHeuristic:
             return self.cache[cache_key]
 
         sys_instruction = (
-            "You are a strict, expert MiniZinc code evaluator. "
-            "You will be given a User Intent, the generated MiniZinc Code, and its corresponding parsed AST (Abstract Syntax Tree). "
+            f"You are a strict, expert {self.dsl_name} code evaluator. "
+            f"You will be given a User Intent, the generated {self.dsl_name} Code, and its corresponding parsed AST (Abstract Syntax Tree). "
             "Your job is to determine how accurately the code implements the User Intent. "
             "Return a JSON object with a single key 'reward' mapping to a float between 0.0 and 1.0. "
             "1.0 means perfect semantic match. 0.0 means it completely fails to fulfill the user's requirements."
@@ -533,7 +531,7 @@ class OllamaLLMHeuristic:
         ast_json = ast_to_json_serializable(ast)
         user_msg = (
             f"User Intent: {prompt}\n"
-            f"MiniZinc Code: {code}\n"
+            f"{self.dsl_name} Code: {code}\n"
             f"Parsed AST: {json.dumps(ast_json)}\n"
         )
         
@@ -573,7 +571,7 @@ class OllamaLLMHeuristic:
         Returns a dictionary like {"identifiers": ["y"], "integer_literals": ["10"]}
         """
         sys_instruction = (
-            "You are a helpful assistant for a constraint programming system. "
+            f"You are a helpful assistant for a {self.dsl_description} system. "
             "Extract the variable names and integer literal values from the given user prompt. "
             "Return a JSON object with strictly two keys:\n"
             "- 'identifiers': A list of strings representing variable names (e.g., ['x', 'y']).\n"
@@ -611,14 +609,30 @@ class OllamaLLMHeuristic:
 # 4. Test Execution
 # =====================================================================
 if __name__ == "__main__":
-    # nl_prompt = "Write a MiniZinc model to find an integer a that is exactly equal to 10."
-    nl_prompt = "Declare two booleans a and c, constrain that either a or c, and satisfy."
+    nl_prompt = "Write a MiniZinc model to find an integer a that is exactly equal to 10."
+    # nl_prompt = "Declare two booleans a and c, constrain that either a or c, and satisfy."
     print(f"NL Prompt: '{nl_prompt}'")
 
     model = os.getenv("OLLAMA_MODEL", "llama3")
     print(f"Using Ollama Model: {model}")
+
+    # Define the domain-specific aliases here
+    minizinc_aliases = {
+        "\\/": "Logical OR (either/or)",
+        "/\\": "Logical AND (both)",
+        "->": "Logical Implication (if/then)",
+        "==": "Equality (exactly equal)",
+        "!=": "Inequality (not equal)"
+    }
+
     # 1. Initialize the Neural component (LLM)
-    llm = OllamaLLMHeuristic(prompt=nl_prompt, model=model) 
+    llm = OllamaLLMHeuristic(
+        prompt=nl_prompt, 
+        model=model,
+        dsl_name="MiniZinc",
+        dsl_description="constraint programming",
+        action_aliases=minizinc_aliases
+    ) 
     
     extracted_data = llm.extract_entities(prompt=nl_prompt)
 
@@ -629,7 +643,7 @@ if __name__ == "__main__":
     mcts = NeurosymbolicMCTS(env=env, llm_policy=llm, c_puct=1.5)
     
     initial_ast = ("<Model>",)
-    final_code = mcts.generate_code(initial_ast, max_steps=200, num_simulations=500)
+    final_code = mcts.generate_code(initial_ast, max_steps=200, num_simulations=100)
     
     print("\n--- Final Generated MiniZinc Code ---")
     print(final_code)

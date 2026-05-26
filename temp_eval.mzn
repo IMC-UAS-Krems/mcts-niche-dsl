@@ -1,4 +1,4 @@
-var bool: c;
-var bool: a;
-constraint a + c != 0 + 0;
+var 10..10: a;
+constraint 10 == a;
 solve satisfy;
+output [show(a)];
