@@ -78,6 +78,7 @@ def baseline_1_zero_shot(prompt: str, model: str = "qwen2.5-coder:1.5b") -> str:
     
     print("[Baseline 1] Running Zero-Shot...")
     response = requests.post(api_url, json=payload)
+    print("[Baseline 1] Received response from LLM.")
     return response.json().get("response", "")
 
 
