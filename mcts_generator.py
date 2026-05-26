@@ -477,7 +477,7 @@ class OllamaLLMHeuristic:
             # print(f"[DEBUG RESPONSE] Response: {response.json()}")
             
             # Extract JSON output
-            llm_output = json.loads(response.json()["thinking"])
+            llm_output = json.loads(response.json()["response"])
             
             scores = llm_output.get("action_scores", {})
             state_value = float(llm_output.get("state_value", 0.5))
@@ -549,7 +549,7 @@ class OllamaLLMHeuristic:
             response = requests.post(self.api_url, json=payload, timeout=30)
             response.raise_for_status()
             
-            llm_output = json.loads(response.json()["thinking"])
+            llm_output = json.loads(response.json()["response"])
             reward = float(llm_output.get("reward", 0.0))
             # print(f"[DEBUG JUDGE] Code: {''.join(code)}")
             # print(f"[DEBUG JUDGE] Reward Assigned: {reward}")
@@ -593,7 +593,7 @@ class OllamaLLMHeuristic:
         try:
             response = requests.post(self.api_url, json=payload, timeout=30)
             response.raise_for_status()
-            extracted = json.loads(response.json()["thinking"])
+            extracted = json.loads(response.json()["response"])
             
             # Ensure lists are returned even if the LLM hallucinates format
             return {

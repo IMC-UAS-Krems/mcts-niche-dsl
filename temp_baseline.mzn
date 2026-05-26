@@ -1,3 +1,4 @@
-var int: a;
-constraint a == 10;
-solve satisfy;
+var bool: x;
+constraint 5 > x + x;
+solve minimize x;
+output [show(x)];

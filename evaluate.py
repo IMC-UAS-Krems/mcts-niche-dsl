@@ -23,6 +23,7 @@ from baselines import (
 BENCHMARK_FILE = "benchmark_test.json"
 RESULTS_FILE = "evaluation_results.json"
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5-coder:1.5b")
+OLLAMA_JUDGE_MODEL = os.getenv("OLLAMA_JUDGE_MODEL", "qwen3.5:latest")
 
 # K-sampling settings
 # If K=3, we generate 3 samples per method. If ANY of the 3 pass, the prompt is marked as solved.
@@ -66,7 +67,7 @@ def run_mcts_k_times(prompt: str, judge: OllamaLLMHeuristic, k: int) -> List[str
         mcts = NeurosymbolicMCTS(env=env, llm_policy=judge, c_puct=1.5)
         initial_ast = ("<Model>",)
         
-        code = mcts.generate_code(initial_ast, max_steps=100, num_simulations=100)
+        code = mcts.generate_code(initial_ast, max_steps=100, num_simulations=300)
         samples.append(code)
     return samples
 
@@ -84,10 +85,10 @@ def run_benchmark():
         "->": "Logical Implication (if/then)", "==": "Equality", "!=": "Inequality"
     }
 
-    print(f"Initializing LLM Judge with model '{OLLAMA_MODEL}'...")
+    print(f"Initializing LLM Judge with model '{OLLAMA_JUDGE_MODEL}'...")
     llm_judge = OllamaLLMHeuristic(
         prompt="", # Prompt is updated dynamically during eval
-        model=OLLAMA_MODEL,
+        model=OLLAMA_JUDGE_MODEL,
         dsl_name="MiniZinc",
         dsl_description="constraint programming",
         action_aliases=minizinc_aliases

@@ -1,4 +1,4 @@
-var 10..10: a;
-constraint 10 == a;
-solve satisfy;
-output [show(a)];
+var bool: x;
+constraint 5 > x + x;
+solve minimize x;
+output [show(x)];

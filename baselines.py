@@ -77,9 +77,11 @@ def baseline_1_zero_shot(prompt: str, model: str = "qwen2.5-coder:1.5b") -> str:
     }
     
     print("[Baseline 1] Running Zero-Shot...")
-    response = requests.post(api_url, json=payload)
-    print("[Baseline 1] Received response from LLM.")
-    return response.json().get("response", "")
+    response = requests.post(api_url, json=payload, timeout=30)
+    response.raise_for_status()
+    response_str = response.json().get("response", "")
+    print(f"[Baseline 1] Received response from LLM: {response_str}")
+    return response_str
 
 
 # =====================================================================
@@ -115,6 +117,7 @@ def baseline_2_one_shot_grammar(prompt: str, model: str = "qwen2.5-coder:1.5b") 
     
     print("[Baseline 2] Running One-Shot Grammar-Informed...")
     response = requests.post(api_url, json=payload)
+    print(f"[Baseline 2] Received response from LLM: {response.status_code}")
     return response.json().get("response", "")
 
 
