@@ -169,6 +169,7 @@ class NeurosymbolicMCTS:
         step = 0
         
         while not self.env.is_terminal(current_state) and step < max_steps:
+            print(f"\n[Generation Step {step}] Current AST: {current_state}")
             best_action, expected_reward = self.search(current_state, num_simulations)
             
             # DEAD-END DETECTION
@@ -243,21 +244,33 @@ class MiniZincEnvironment:
                 ["constraint ", "<Expr>", ";\n"]
             ],
             
-            # --- Expressions (Flattened to avoid infinite left-recursion) ---
+            # --- Stratified Expressions (Bounded Depth, No Infinite Recursion) ---
+            
+            # Level 1: Logical Combinations (e.g., A \/ B, A -> B)
             "<Expr>": [
-                ["<Term>"],                                                                   # e.g., b
-                ["<Term>", " ", "<CompOp>", " ", "<Term>"],                                   # e.g., x > 1, x in s
-                ["<Term>", " ", "<MathOp>", " ", "<Term>", " ", "<CompOp>", " ", "<Term>"],   # e.g., x + y <= 10, x mod 2 == 0
-                ["<Term>", " ", "<LogicOp>", " ", "<Term>"],                                  # e.g., a \/ c
-                ["<Term>", " ", "<LogicOp>", " ", "<Term>", " ", "<CompOp>", " ", "<Term>"],  # e.g., b -> z > 2
-                ["sum(", "<Ident>", ")", " ", "<CompOp>", " ", "<Term>"]                      # e.g., sum(arr) == 3
+                ["<BaseBool>"],
+                ["<BaseBool>", " ", "<LogicOp>", " ", "<BaseBool>"]
             ],
             
+            # Level 2: Boolean Evaluations / Comparisons (e.g., X > Y, sum(arr) == 3, or just a boolean 'b')
+            "<BaseBool>": [
+                ["<MathExpr>"],                                          # For pure boolean variables (e.g., 'b')
+                ["<MathExpr>", " ", "<CompOp>", " ", "<MathExpr>"],      # e.g., x + y <= 10
+                ["sum(", "<Ident>", ")", " ", "<CompOp>", " ", "<MathExpr>"] # e.g., sum(arr) == 3
+            ],
+            
+            # Level 3: Arithmetic Operations (e.g., X + Y)
+            "<MathExpr>": [
+                ["<Term>"],
+                ["<Term>", " ", "<MathOp>", " ", "<Term>"]
+            ],
+            
+            # Level 4: Atoms
             "<Term>": [
                 ["<Ident>"], 
                 ["<IntLit>"]
             ],
-            
+
             # Operators
             "<MathOp>":  [["+"], ["-"], ["*"], ["/"], ["mod"]],
             "<CompOp>":  [[">"], ["<"], ["=="], ["!="], ["<="], [">="], ["in"]],
