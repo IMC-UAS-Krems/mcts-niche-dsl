@@ -2,5 +2,21 @@
   {
     "nl": "Write a model to find an integer x that is strictly greater than 5. Satisfy the constraints.",
     "code": "var int: x;\nconstraint x > 5;\nsolve satisfy;\n"
+  },
+  {
+    "nl": "Find an integer y that is exactly equal to 10.",
+    "code": "var int: y;\nconstraint y == 10;\nsolve satisfy;\n"
+  },
+  {
+    "nl": "Declare an integer z between 1 and 100. Constrain z to be less than 50 and satisfy.",
+    "code": "var 1..100: z;\nconstraint z < 50;\nsolve satisfy;\n"
+  },
+  {
+    "nl": "Create a model with an integer a from 0 to 10, where a is not equal to 3.",
+    "code": "var 0..10: a;\nconstraint a != 3;\nsolve satisfy;\n"
+  },
+  {
+    "nl": "Find an integer b that is greater than or equal to 20.",
+    "code": "var int: b;\nconstraint b >= 20;\nsolve satisfy;\n"
   }
 ]

@@ -1,20 +1,20 @@
 {
   "aggregate": {
     "Zero-Shot": {
-      "successes": 1,
-      "failures": 0
+      "successes": 0,
+      "failures": 1
     },
     "One-Shot": {
-      "successes": 1,
-      "failures": 0
+      "successes": 0,
+      "failures": 1
     },
     "GCD": {
-      "successes": 1,
-      "failures": 0
+      "successes": 0,
+      "failures": 1
     },
     "MCTS": {
-      "successes": 1,
-      "failures": 0
+      "successes": 0,
+      "failures": 1
     }
   },
   "details": [
@@ -23,23 +23,19 @@
       "prompt": "Write a model to find an integer x that is strictly greater than 5. Satisfy the constraints.",
       "evaluations": {
         "Zero-Shot": {
-          "pass": true,
-          "samples": [
-            "```\nint: x;\nconstraint x > 5;\n```",
-            "```\nint: x;\nsolve satisfy {\n    x > 5;\n}\n```",
-            "```\nint: x;\nconstraint x > 5;\n```"
-          ]
+          "pass": false,
+          "error": "404 Client Error: Not Found for url: http://localhost:11434/api/generate"
         },
         "One-Shot": {
-          "pass": true,
+          "pass": false,
           "samples": [
-            "```mzn\nvar int: x;\nconstraint x > 5;\nsolve satisfy;\n```",
-            "```mzn\nvar int: x;\nconstraint x > 5;\nsolve satisfy;\n```",
-            "```mzn\nvar int: x;\nconstraint x > 5;\nsolve satisfy;\n```"
+            "",
+            "",
+            ""
           ]
         },
         "GCD": {
-          "pass": true,
+          "pass": false,
           "samples": [
             "var int: x;\nconstraint x > 5;\nsolve satisfy;\n",
             "var int: x;\nconstraint x > 5;\nsolve satisfy;\n",
@@ -47,11 +43,11 @@
           ]
         },
         "MCTS": {
-          "pass": true,
+          "pass": false,
           "samples": [
-            "var bool: x;\nconstraint 5 > x + x;\nsolve minimize x;\noutput [show(x)];\n",
-            "var bool: x;\nconstraint 5 > x + x;\nsolve minimize x;\noutput [show(x)];\n",
-            "var bool: x;\nconstraint 5 > x + x;\nsolve minimize x;\noutput [show(x)];\n"
+            "<VarDecls><Constraints><Solve><OutputOpt>",
+            "<VarDecls><Constraints><Solve><OutputOpt>",
+            "<VarDecls><Constraints><Solve><OutputOpt>"
           ]
         }
       }

@@ -1,4 +1,6 @@
 var bool: x;
-constraint 5 > x + x;
-solve minimize x;
+constraint x;
+constraint x;
+constraint x;
+solve satisfy;
 output [show(x)];

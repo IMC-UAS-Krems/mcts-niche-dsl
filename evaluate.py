@@ -56,15 +56,15 @@ def is_successful_generation(prompt: str, code: str, llm_judge: OllamaLLMHeurist
 # =====================================================================
 # Generators Wrappers (Generating K samples)
 # =====================================================================
-def run_mcts_k_times(prompt: str, judge: OllamaLLMHeuristic, k: int) -> List[str]:
+def run_mcts_k_times(prompt: str, judge: OllamaLLMHeuristic, search: OllamaLLMHeuristic, k: int) -> List[str]:
     samples = []
     # Extract entities once to save time
-    extracted_data = judge.extract_entities(prompt=prompt)
+    extracted_data = search.extract_entities(prompt=prompt)
     
     for _ in range(k):
         env = MiniZincEnvironment(target_prompt=prompt, llm_judge=judge, extracted_entities=extracted_data)
         # Note: num_simulations can be lowered slightly here to speed up K-sampling
-        mcts = NeurosymbolicMCTS(env=env, llm_policy=judge, c_puct=1.5)
+        mcts = NeurosymbolicMCTS(env=env, llm_policy=search, c_puct=1.5)
         initial_ast = ("<Model>",)
         
         code = mcts.generate_code(initial_ast, max_steps=100, num_simulations=300)
@@ -89,6 +89,15 @@ def run_benchmark():
     llm_judge = OllamaLLMHeuristic(
         prompt="", # Prompt is updated dynamically during eval
         model=OLLAMA_JUDGE_MODEL,
+        dsl_name="MiniZinc",
+        dsl_description="constraint programming",
+        action_aliases=minizinc_aliases
+    )
+
+    print(f"Using LLM semantic model '{OLLAMA_MODEL}'...")
+    llm_search = OllamaLLMHeuristic(
+        prompt="", # Prompt is updated dynamically during eval
+        model=OLLAMA_MODEL,
         dsl_name="MiniZinc",
         dsl_description="constraint programming",
         action_aliases=minizinc_aliases
@@ -119,7 +128,7 @@ def run_benchmark():
             "Zero-Shot": lambda: [baseline_1_zero_shot(prompt, OLLAMA_MODEL) for _ in range(K_SAMPLES)],
             "One-Shot":  lambda: [baseline_2_one_shot_grammar(prompt, OLLAMA_MODEL) for _ in range(K_SAMPLES)],
             "GCD":       lambda: [baseline_3_grammar_constrained(prompt) for _ in range(K_SAMPLES)],
-            "MCTS":      lambda: run_mcts_k_times(prompt, llm_judge, K_SAMPLES)
+            "MCTS":      lambda: run_mcts_k_times(prompt, llm_judge, llm_search, K_SAMPLES)
         }
 
         for method_name, generate_func in methods.items():
