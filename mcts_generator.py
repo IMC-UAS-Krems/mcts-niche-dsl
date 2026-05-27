@@ -95,32 +95,65 @@ class NeurosymbolicMCTS:
         else:
             return 0.0 # Failed to reach a terminal state within depth limit
     
-    def fast_safe_rollout(self, state: Tuple[str, ...]) -> bool:
-        current_state = state
-        depth = 0
-        max_depth = 40 
+    def fast_safe_rollout(self, state: Tuple[str, ...]) -> tuple[bool, str]:
+        max_retries = 5
+        previous_errors = [] # Stores tuples of (failed_code, compiler_error)
+
+        for attempt in range(max_retries):
+            current_state = state
+            depth = 0
+            max_depth = 40 
+            
+            while not self.env.is_terminal(current_state) and depth < max_depth:
+                valid_actions = self.env.get_valid_actions(current_state)
+                if not valid_actions: break
+                
+                idx = self.env._get_leftmost_nt(current_state)
+                current_nt = current_state[idx] if idx != -1 else None
+
+                # If we are at the root of the rollout and have failed previously, 
+                # ask the LLM to adjust its priorities based on the compiler error!
+                if previous_errors:
+                    action_probs = self.llm.predict_with_feedback(current_state, valid_actions, previous_errors)
+                else:
+                    action_probs, _ = self.llm.predict_and_evaluate(current_state, valid_actions)
+                
+                # Combine Semantic Probs, Anti-Recursion Penalty, and Retry Noise
+                scores = {}
+                for action in valid_actions:
+                    base_score = action_probs.get(action, 0.0)
+                    
+                    # 1. Anti-Recursion Penalty
+                    if current_nt and current_nt in action:
+                        base_score -= 100.0 
+                        
+                    # 2. Tie-Breaking Noise (Only active during retries to force exploration)
+                    noise = random.uniform(0.0, 0.05) if attempt > 0 else 0.0
+                    
+                    scores[action] = base_score + noise
+                    
+                best_action = max(scores, key=scores.get)
+                current_state = self.env.apply_action(current_state, best_action)
+                depth += 1
+                
+            # Evaluate the completed stub
+            if self.env.is_terminal(current_state):
+                code = "".join(current_state)
+                # Assumes check_compilation_with_feedback returns (bool, error_msg_str)
+                # print(f"  [Rollout Attempt {attempt+1}] Generated Code:\n{code}")
+                is_valid, error_msg = self.env.check_compilation_with_feedback(code)
+                # print(f"  [Rollout Attempt {attempt+1}] Compilation Feedback: {'Valid' if is_valid else 'Invalid'}; Error: {error_msg}")
+                
+                if is_valid:
+                    return True, ""
+                else:
+                    # Save the error to inform the next retry loop
+                    previous_errors.append((code, error_msg))
+            else:
+                previous_errors.append(("".join(current_state), "Rollout depth exceeded. Left unresolved non-terminals."))
         
-        while not self.env.is_terminal(current_state) and depth < max_depth:
-            valid_actions = self.env.get_valid_actions(current_state)
-            if not valid_actions: break
-            
-            # Identify the non-terminal currently being expanded
-            idx = self.env._get_leftmost_nt(current_state)
-            current_nt = current_state[idx] if idx != -1 else None
-            
-            # Get the semantic intuition from the LLM
-            action_probs, _ = self.llm.predict_and_evaluate(current_state, valid_actions)
-            
-            # Combine semantic LLM probabilities with an Anti-Recursion Penalty
-            scores = {a: (action_probs.get(a, 0.0) - 100.0 if current_nt and current_nt in a else action_probs.get(a, 0.0)) for a in valid_actions}
-            best_action = max(scores, key=scores.get)
-            current_state = self.env.apply_action(current_state, best_action)
-            # print(f"  [Rollout] Depth: {depth}, Expanded NT: {current_nt}, Best Action: {''.join(best_action)}, Score: {scores[best_action]:.4f}")
-            depth += 1
-            
-        if self.env.is_terminal(current_state):
-            return self.env.check_compilation_with_feedback("".join(current_state))
-        return False, "Rollout depth exceeded."
+        # If all retries failed, return False and the last error message
+        return False, previous_errors[-1][1] if previous_errors else "Unknown Rollout Error"
 
     def search(self, initial_state: Tuple[str, ...], num_simulations: int = 50, rollout_weight: float = 0.5) -> Tuple[str, ...]:
         root = MCTSNode(state=initial_state, prior_prob=1.0)
@@ -147,11 +180,12 @@ class NeurosymbolicMCTS:
                 node.expand(action_probs, self.env)
 
                 is_viable, error_msg = self.fast_safe_rollout(node.state)
+                if not is_viable:
+                    print(f"  [Rollout Failed] Compiler error: {error_msg}")
                 if is_viable:
                     final_value = llm_value 
                 else:
                     final_value = self.llm.evaluate_compiler_error(node.state, error_msg)
-                    print(f"  [Rollout Failed] Compiler error: node is not viable")
             else:
                 # 3. Terminal Reward
                 base_reward = self.env.compute_reward(node.state)
@@ -700,6 +734,74 @@ class OllamaLLMHeuristic:
             
         self.cache[cache_key] = score
         return score
+    
+    def predict_with_feedback(self, state: Tuple[str, ...], valid_actions: List[Tuple[str, ...]], previous_errors: list) -> Dict[Tuple[str, ...], float]:
+        """
+        Re-evaluates the valid actions based on the compiler errors from previous failed rollout attempts.
+        """
+        # Cache based on the number of previous errors to avoid repeating the exact same feedback loop
+        cache_key = ("feedback", state, tuple(valid_actions), len(previous_errors))
+        if cache_key in self.cache: 
+            return self.cache[cache_key]
+
+        state_str = "".join(state)
+        actions_dict = {str(i): "".join(a) for i, a in enumerate(valid_actions)}
+
+        # Format the feedback history
+        errors_str = ""
+        for i, (code, err) in enumerate(previous_errors):
+            errors_str += f"\nAttempt {i+1}:\nGenerated Code:\n{code}\nCompiler Error:\n{err}\n"
+
+        sys_instruction = (
+            f"You are an expert {self.dsl_name} debugger guiding a code generator. "
+            "We are at a 'Partial Code' state and need to choose the 'Valid Next Action'. "
+            "Previously, we tried completing this code, but it resulted in compiler errors. "
+            "Review the past attempts and compiler errors to understand what went wrong. "
+            "Then, score the 'Valid Next Actions' to steer the generation away from the error and towards a correct solution. "
+            "Return a JSON object with a single key 'action_scores' mapping the action index (string) to a score (1.0 to 10.0)."
+        )
+
+        import json
+        user_msg = (
+            f"User Intent: {self.prompt}\n"
+            f"Partial Code: {state_str}\n"
+            f"--- PREVIOUS FAILED ATTEMPTS ---{errors_str}"
+            f"--- END PREVIOUS ATTEMPTS ---\n"
+            f"Valid Next Actions: {json.dumps(actions_dict)}\n"
+        )
+        
+        payload = {
+            "model": self.model,
+            "prompt": f"{sys_instruction}\n\n{user_msg}",
+            "format": "json",
+            "stream": False,
+            "options": {"temperature": 0.3} # Slightly higher temp to encourage changing its mind
+        }
+
+        try:
+            response = requests.post(self.api_url, headers=self.headers, json=payload, timeout=30)
+            llm_output = json.loads(response.json()["thinking"]) # or "response"
+            
+            scores = llm_output.get("action_scores", {})
+            action_probs = {}
+            total_score = 0.0
+            for i, action in enumerate(valid_actions):
+                score = float(scores.get(str(i), 1.0))
+                action_probs[action] = score
+                total_score += score
+                
+            if total_score > 0:
+                for a in action_probs: action_probs[a] /= total_score
+            else:
+                raise ValueError("Total score is 0.")
+
+        except Exception as e:
+            # Fallback to uniform if LLM fails formatting
+            prob = 1.0 / len(valid_actions)
+            action_probs = {action: prob for action in valid_actions}
+
+        self.cache[cache_key] = action_probs
+        return action_probs
 
 # =====================================================================
 # 4. Test Execution
