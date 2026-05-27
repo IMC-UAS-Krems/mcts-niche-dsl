@@ -1,6 +1,4 @@
-var bool: x;
-constraint x;
-constraint x;
-constraint x;
+var bool: z;
+constraint z * z < z \/ z;
 solve satisfy;
-output [show(x)];
+output [show(z)];

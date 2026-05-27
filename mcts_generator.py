@@ -148,8 +148,13 @@ class NeurosymbolicMCTS:
                     final_value = 0.0 
             else:
                 # 3. Terminal Reward
-                # print(f"[DEBUG SEARCH] Terminal node reached: {node.state}, evaluating reward...")
-                final_value = self.env.compute_reward(node.state)
+                base_reward = self.env.compute_reward(node.state)
+                
+                # Penalize verbosity: subtract a tiny fraction based on AST length
+                # e.g., if a state takes 30 steps, penalty is 0.03. If 50 steps, 0.05.
+                length_penalty = len(node.state) * 0.001 
+                
+                final_value = max(0.0, base_reward - length_penalty)
                 terminal_reached = True
 
             # 4. Backpropagation

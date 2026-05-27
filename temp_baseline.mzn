@@ -1,3 +1,3 @@
-var int: x;
-constraint x > 5;
+var int: z;
+constraint z < 50;
 solve satisfy;

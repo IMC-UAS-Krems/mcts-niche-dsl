@@ -2,19 +2,19 @@
   "aggregate": {
     "Zero-Shot": {
       "successes": 0,
-      "failures": 1
+      "failures": 2
     },
     "One-Shot": {
       "successes": 0,
-      "failures": 1
+      "failures": 2
     },
     "GCD": {
       "successes": 0,
-      "failures": 1
+      "failures": 2
     },
     "MCTS": {
       "successes": 0,
-      "failures": 1
+      "failures": 2
     }
   },
   "details": [
@@ -24,14 +24,18 @@
       "evaluations": {
         "Zero-Shot": {
           "pass": false,
-          "error": "404 Client Error: Not Found for url: http://localhost:11434/api/generate"
+          "samples": [
+            "```\nint: x;\nconstraint x > 5;\n```",
+            "```\nint: x;\nconstraint x > 5;\n```",
+            "```\nint: x;\nsolve satisfy {\n    x > 5;\n}\n```"
+          ]
         },
         "One-Shot": {
           "pass": false,
           "samples": [
-            "",
-            "",
-            ""
+            "```mzn\nvar int: x;\nconstraint x > 5;\nsolve satisfy;\n```",
+            "```mzn\nvar int: x;\nconstraint x > 5;\nsolve satisfy;\n```",
+            "```mzn\nvar int: x;\nconstraint x > 5;\nsolve satisfy;\n```"
           ]
         },
         "GCD": {
@@ -45,9 +49,47 @@
         "MCTS": {
           "pass": false,
           "samples": [
-            "<VarDecls><Constraints><Solve><OutputOpt>",
-            "<VarDecls><Constraints><Solve><OutputOpt>",
-            "<VarDecls><Constraints><Solve><OutputOpt>"
+            "var bool: x;\nconstraint x + 5 > x + x;\nsolve maximize x;\noutput [show(x)];\n",
+            "var bool: x;\nconstraint x + 5 > x + x;\nsolve maximize x;\noutput [show(x)];\n",
+            "var bool: x;\nconstraint x + 5 > x + x;\nsolve maximize x;\noutput [show(x)];\n"
+          ]
+        }
+      }
+    },
+    {
+      "id": 1,
+      "prompt": "Find an integer y that is exactly equal to 10.",
+      "evaluations": {
+        "Zero-Shot": {
+          "pass": false,
+          "samples": [
+            "```\nint: y = 10;\n```",
+            "```\nint: y = 10;\n```",
+            "```\nint: y = 10;\n```"
+          ]
+        },
+        "One-Shot": {
+          "pass": false,
+          "samples": [
+            "```mzn\nvar int: y;\nconstraint y = 10;\nsolve satisfy;\n```",
+            "```mzn\nvar int: y;\nconstraint y = 10;\nsolve satisfy;\n```",
+            "```mzn\nvar int: y = 10;\nsolve satisfy;\n```"
+          ]
+        },
+        "GCD": {
+          "pass": false,
+          "samples": [
+            "var int: y;\nconstraint y == 10;\nsolve satisfy;\n",
+            "var int: y;\nconstraint y == 10;\nsolve satisfy;\n",
+            "var int: y;\nconstraint y == 10;\nsolve satisfy;\n"
+          ]
+        },
+        "MCTS": {
+          "pass": false,
+          "samples": [
+            "var bool: y;\nconstraint y <= 10 mod y -> y + 10 > y - y;\nsolve satisfy;\noutput [show(y)];\n",
+            "var bool: y;\nconstraint y <= 10 mod y -> y + 10 > y - y;\nsolve satisfy;\noutput [show(y)];\n",
+            "var bool: y;\nconstraint y <= 10 mod y -> y + 10 > y - y;\nsolve satisfy;\noutput [show(y)];\n"
           ]
         }
       }
