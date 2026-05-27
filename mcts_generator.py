@@ -104,16 +104,37 @@ class NeurosymbolicMCTS:
             valid_actions = self.env.get_valid_actions(current_state)
             if not valid_actions: break
             
-            # Use the LLM to pick the MOST LIKELY valid action, not just the shortest.
-            # (Because the state is cached, this is extremely fast and doesn't spam the API)
-            action_probs, _ = self.llm.predict_and_evaluate(current_state, valid_actions)
-            best_action = max(action_probs, key=action_probs.get)
+            # Identify the non-terminal currently being expanded
+            idx = self.env._get_leftmost_nt(current_state)
+            current_nt = current_state[idx] if idx != -1 else None
             
+            # Get the semantic intuition from the LLM
+            action_probs, _ = self.llm.predict_and_evaluate(current_state, valid_actions)
+            
+            # Combine semantic LLM probabilities with an Anti-Recursion Penalty
+            scores = {}
+            for action in valid_actions:
+                prob = action_probs.get(action, 0.0)
+                
+                # If the action contains the non-terminal being expanded, penalize it heavily.
+                # This guarantees that recursive lists (like <VarDecls>) instantly take their 
+                # base cases, while expressions and types remain completely guided by the LLM.
+                if current_nt and current_nt in action:
+                    score = prob - 100.0 
+                else:
+                    score = prob
+                    
+                scores[action] = score
+                
+            # Pick the action with the highest modified score
+            print(f"[Fast Safe Rollout] Current NT: {current_nt}, Action Scores: {scores}")
+            best_action = max(scores, key=scores.get)
             current_state = self.env.apply_action(current_state, best_action)
             depth += 1
             
         if self.env.is_terminal(current_state):
             code = "".join(current_state)
+            print(f"[Fast Safe Rollout] Generated code:\n{code}")
             return self.env.check_compilation_only(code) 
         
         return False
@@ -132,13 +153,20 @@ class NeurosymbolicMCTS:
             # 2. Evaluation & Expansion
             if not self.env.is_terminal(node.state):
                 valid_actions = self.env.get_valid_actions(node.state)
-                # print(f"[DEBUG SEARCH] Valid actions: {valid_actions}")
-                action_probs, llm_value = self.llm.predict_and_evaluate(node.state, valid_actions)
-                # print(f"[DEBUG SEARCH] Action probabilities: {action_probs}, State value: {value}")
+                if len(valid_actions) == 1:
+                    # If there's only one valid action, skip the LLM and directly expand
+                    action_probs = {valid_actions[0]: 1.0}
+                else:
+                    # print(f"[DEBUG SEARCH] Valid actions: {valid_actions}")
+                    action_probs, llm_value = self.llm.predict_and_evaluate(node.state, valid_actions)
+                    # print(f"[DEBUG SEARCH] Action probabilities: {action_probs}, State value: {value}")
+                
                 node.expand(action_probs, self.env)
 
+                print(f"[Simulation {_+1}/{num_simulations}] Expanded Node: {node.state}")
                 is_viable = self.fast_safe_rollout(node.state)
-                
+                print(f"[Simulation {_+1}/{num_simulations}] Fast Safe Rollout Viability: {is_viable}")
+
                 if is_viable:
                     # The prefix is semantically sound. Trust the LLM's intuition for intent.
                     final_value = llm_value 
@@ -166,6 +194,8 @@ class NeurosymbolicMCTS:
         # Proportional Action Sampling based on Visit Counts
         actions = list(root.children.keys())
         visit_counts = [child.visit_count for child in root.children.values()]
+        print(f"[MCTS Search Completed] Root visit count: {root.visit_count}, Action visit counts: {visit_counts}")
+        print(f"[MCTS Search Completed] Actions: {actions}")
         
         # Calculate probabilities proportional to visit counts
         total_visits = sum(visit_counts)
@@ -179,6 +209,7 @@ class NeurosymbolicMCTS:
         best_child = root.children[best_action]
         
         # Return both the action AND its average reward (Q-value) for dead-end detection
+        print(f"[MCTS] Best action selected: {best_action} with Q-value: {best_child.q_value}")
         return best_action, best_child.q_value
 
     def generate_code(self, initial_state: Tuple[str, ...], max_steps: int = 40, num_simulations: int = 50) -> str:
@@ -363,8 +394,10 @@ class MiniZincEnvironment:
                 ["minizinc", "--model-check-only", "temp_stub.mzn"],
                 capture_output=True, text=True, timeout=2
             )
+            print(f"[Compilation Check] Return code: {result.returncode}, Stderr: {result.stderr.strip()}")
             return result.returncode == 0
-        except Exception:
+        except Exception as e:
+            print(f"  [Compilation Check Failed] Error: {e}")
             return False
 
     def compute_reward(self, state: tuple) -> float:

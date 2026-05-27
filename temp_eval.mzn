@@ -1,4 +1,3 @@
-var bool: z;
-constraint z * z < z \/ z;
+var bool: a;
+constraint 10 > 10;
 solve satisfy;
-output [show(z)];

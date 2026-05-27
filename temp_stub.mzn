@@ -1,4 +1,4 @@
-var bool: z;
-constraint z * z < 100 -> sum(z) > z;
+var int: a;
+constraint a;
 solve satisfy;
-output [show(z)];
+output [show(a)];
