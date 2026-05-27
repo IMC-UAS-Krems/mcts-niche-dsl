@@ -163,10 +163,22 @@ class NeurosymbolicMCTS:
         if not terminal_reached:
             print("[MCTS Warning] No terminal state reached during simulations. Final selection may be suboptimal.")
 
-        # Find the best child
-        best_action, best_child = max(root.children.items(), key=lambda item: item[1].visit_count)
+        # Proportional Action Sampling based on Visit Counts
+        actions = list(root.children.keys())
+        visit_counts = [child.visit_count for child in root.children.values()]
         
-        # Return both the action AND its average reward (Q-value)
+        # Calculate probabilities proportional to visit counts
+        total_visits = sum(visit_counts)
+        if total_visits > 0:
+            probabilities = [v / total_visits for v in visit_counts]
+            # Probabilistically sample the next action
+            best_action = random.choices(actions, weights=probabilities, k=1)[0]
+        else:
+            best_action = random.choice(actions)
+            
+        best_child = root.children[best_action]
+        
+        # Return both the action AND its average reward (Q-value) for dead-end detection
         return best_action, best_child.q_value
 
     def generate_code(self, initial_state: Tuple[str, ...], max_steps: int = 40, num_simulations: int = 50) -> str:
@@ -471,7 +483,7 @@ class OllamaLLMHeuristic:
             "format": "json",
             "stream": False,
             "options": {
-                "temperature": 0.2 # Low temperature for more deterministic logic evaluation
+                "temperature": 0.5 # Some randomness to encourage exploration, but not too much!
             }
         }
 

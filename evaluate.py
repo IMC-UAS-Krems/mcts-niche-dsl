@@ -62,6 +62,9 @@ def run_mcts_k_times(prompt: str, judge: OllamaLLMHeuristic, search: OllamaLLMHe
     extracted_data = search.extract_entities(prompt=prompt)
     
     for _ in range(k):
+        # Clear the cache so the LLM gets queried freshly for each run!
+        search.cache = {k: v for k, v in search.cache.items() if k[0] == "eval"}
+
         env = MiniZincEnvironment(target_prompt=prompt, llm_judge=judge, extracted_entities=extracted_data)
         # Note: num_simulations can be lowered slightly here to speed up K-sampling
         mcts = NeurosymbolicMCTS(env=env, llm_policy=search, c_puct=1.5)
