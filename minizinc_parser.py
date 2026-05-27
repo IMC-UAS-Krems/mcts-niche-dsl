@@ -78,6 +78,49 @@ string_literal: STRING
 %ignore /%[^\n]*/
 """
 
+minizinc_few_shot_examples = [
+    {
+        "nl": "Write a model to find an integer x that is strictly greater than 5. Satisfy the constraints.",
+        "code": "var int: x;\nconstraint x > 5;\nsolve satisfy;\n"
+    },
+    {
+        "nl": "Declare a boolean variable b. Constrain that b is true.",
+        "code": "var bool: b;\nconstraint b;\nsolve satisfy;\n"
+    },
+    {
+        "nl": "Find an array arr of 3 integers from 1 to 5. Constrain the sum of arr to equal 10.",
+        "code": "array[1..3] of var 1..5: arr;\nconstraint sum(arr) == 10;\nsolve satisfy;\n"
+    },
+    {
+        "nl": "Declare integer y between 0 and 50. Maximize y.",
+        "code": "var 0..50: y;\nconstraint y > 0;\nsolve maximize y;\n"
+    },
+    {
+        "nl": "Declare a set s from 1 to 10 and integer z. Constrain z in s.",
+        "code": "var set of 1..10: s;\nvar int: z;\nconstraint z in s;\nsolve satisfy;\n"
+    },
+    {
+        "nl": "Find an integer a equal to 10 and output a.",
+        "code": "var int: a;\nconstraint a == 10;\nsolve satisfy;\noutput [show(a)];\n"
+    },
+    {
+        "nl": "Find an integer x from 1 to 20 where x modulo 2 equals 0. Minimize x.",
+        "code": "var 1..20: x;\nconstraint x mod 2 == 0;\nsolve minimize x;\n"
+    },
+    {
+        "nl": "Declare boolean b and integer x. If b is true, x must be 5.",
+        "code": "var bool: b;\nvar int: x;\nconstraint b -> x == 5;\nsolve satisfy;\n"
+    },
+    {
+        "nl": "Declare integers x and y from 0 to 10. Constrain x + y <= 15.",
+        "code": "var 0..10: x;\nvar 0..10: y;\nconstraint x + y <= 15;\nsolve satisfy;\n"
+    },
+    {
+        "nl": "Find booleans a and c such that either a or c is true.",
+        "code": "var bool: a;\nvar bool: c;\nconstraint a \\/ c;\nsolve satisfy;\n"
+    }
+]
+
 class MiniZincTransformer(Transformer):
     def model(self, items):
         filtered = [item for item in items if not isinstance(item, Token) or item.type != 'SEMICOLON']

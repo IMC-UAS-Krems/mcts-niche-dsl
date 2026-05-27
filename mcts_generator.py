@@ -2,7 +2,7 @@ import math
 import json
 import requests
 from typing import List, Dict, Tuple, Any, Optional
-from minizinc_parser import parse_model, ast_to_json_serializable
+from minizinc_parser import parse_model, ast_to_json_serializable, minizinc_few_shot_examples
 import os
 from dotenv import load_dotenv
 import subprocess
@@ -112,32 +112,15 @@ class NeurosymbolicMCTS:
             action_probs, _ = self.llm.predict_and_evaluate(current_state, valid_actions)
             
             # Combine semantic LLM probabilities with an Anti-Recursion Penalty
-            scores = {}
-            for action in valid_actions:
-                prob = action_probs.get(action, 0.0)
-                
-                # If the action contains the non-terminal being expanded, penalize it heavily.
-                # This guarantees that recursive lists (like <VarDecls>) instantly take their 
-                # base cases, while expressions and types remain completely guided by the LLM.
-                if current_nt and current_nt in action:
-                    score = prob - 100.0 
-                else:
-                    score = prob
-                    
-                scores[action] = score
-                
-            # Pick the action with the highest modified score
-            print(f"[Fast Safe Rollout] Current NT: {current_nt}, Action Scores: {scores}")
+            scores = {a: (action_probs.get(a, 0.0) - 100.0 if current_nt and current_nt in a else action_probs.get(a, 0.0)) for a in valid_actions}
             best_action = max(scores, key=scores.get)
             current_state = self.env.apply_action(current_state, best_action)
+            # print(f"  [Rollout] Depth: {depth}, Expanded NT: {current_nt}, Best Action: {''.join(best_action)}, Score: {scores[best_action]:.4f}")
             depth += 1
             
         if self.env.is_terminal(current_state):
-            code = "".join(current_state)
-            print(f"[Fast Safe Rollout] Generated code:\n{code}")
-            return self.env.check_compilation_only(code) 
-        
-        return False
+            return self.env.check_compilation_with_feedback("".join(current_state))
+        return False, "Rollout depth exceeded."
 
     def search(self, initial_state: Tuple[str, ...], num_simulations: int = 50, rollout_weight: float = 0.5) -> Tuple[str, ...]:
         root = MCTSNode(state=initial_state, prior_prob=1.0)
@@ -149,13 +132,13 @@ class NeurosymbolicMCTS:
             while node.is_expanded() and not self.env.is_terminal(node.state):
                 action, node = node.get_best_child(self.c_puct)
 
-            # print(f"[DEBUG SEARCH] Node Selected: {node.state}")
+            print(f"[DEBUG SEARCH] Node Selected: {node.state}")
             # 2. Evaluation & Expansion
             if not self.env.is_terminal(node.state):
                 valid_actions = self.env.get_valid_actions(node.state)
                 if len(valid_actions) == 1:
                     # If there's only one valid action, skip the LLM and directly expand
-                    action_probs = {valid_actions[0]: 1.0}
+                    action_probs, llm_value = {valid_actions[0]: 1.0}, 1.0
                 else:
                     # print(f"[DEBUG SEARCH] Valid actions: {valid_actions}")
                     action_probs, llm_value = self.llm.predict_and_evaluate(node.state, valid_actions)
@@ -163,17 +146,12 @@ class NeurosymbolicMCTS:
                 
                 node.expand(action_probs, self.env)
 
-                print(f"[Simulation {_+1}/{num_simulations}] Expanded Node: {node.state}")
-                is_viable = self.fast_safe_rollout(node.state)
-                print(f"[Simulation {_+1}/{num_simulations}] Fast Safe Rollout Viability: {is_viable}")
-
+                is_viable, error_msg = self.fast_safe_rollout(node.state)
                 if is_viable:
-                    # The prefix is semantically sound. Trust the LLM's intuition for intent.
                     final_value = llm_value 
                 else:
-                    # The LLM guided us into a compiler error (e.g., bool == int). 
-                    # Overwrite the LLM and instantly kill this search branch.
-                    final_value = 0.0 
+                    final_value = self.llm.evaluate_compiler_error(node.state, error_msg)
+                    print(f"  [Rollout Failed] Compiler error: node is not viable")
             else:
                 # 3. Terminal Reward
                 base_reward = self.env.compute_reward(node.state)
@@ -195,12 +173,21 @@ class NeurosymbolicMCTS:
         actions = list(root.children.keys())
         visit_counts = [child.visit_count for child in root.children.values()]
         print(f"[MCTS Search Completed] Root visit count: {root.visit_count}, Action visit counts: {visit_counts}")
+        print(f"[MCTS Search Completed] Q-values: {[child.q_value for child in root.children.values()]}")
         print(f"[MCTS Search Completed] Actions: {actions}")
         
         # Calculate probabilities proportional to visit counts
         total_visits = sum(visit_counts)
         if total_visits > 0:
             probabilities = [v / total_visits for v in visit_counts]
+            # Set probabilities to zero for any action that leads to a known dead-end (zero reward) to prevent selection)
+            for i, action in enumerate(actions):
+                child = root.children[action]
+                if child.visit_count > 0 and child.q_value == 0.0:
+                    probabilities[i] = 0.0
+            # Ensure probabilities does not contain all zeros (which would cause random.choices to fail)
+            if sum(probabilities) == 0.0:
+                probabilities = [1.0 / len(actions) for _ in actions] # Fallback to uniform if all are zero
             # Probabilistically sample the next action
             best_action = random.choices(actions, weights=probabilities, k=1)[0]
         else:
@@ -400,6 +387,23 @@ class MiniZincEnvironment:
             print(f"  [Compilation Check Failed] Error: {e}")
             return False
 
+    def check_compilation_with_feedback(self, code: str) -> tuple[bool, str]:
+        try:
+            from minizinc_parser import parse_model
+            parse_model(code)
+            with open("temp_stub.mzn", "w") as f:
+                f.write(code)
+            import subprocess
+            result = subprocess.run(
+                ["minizinc", "--model-check-only", "temp_stub.mzn"],
+                capture_output=True, text=True, timeout=2
+            )
+            if result.returncode == 0:
+                return True, ""
+            return False, result.stderr.strip()
+        except Exception as e:
+            return False, str(e)
+
     def compute_reward(self, state: tuple) -> float:
         """
         First guarantees syntactic validity using Lark.
@@ -459,7 +463,7 @@ class OllamaLLMHeuristic:
     
     def __init__(self, prompt: str, model: str = "llama3", 
                  dsl_name: str = "generic", dsl_description: str = "programming", 
-                 action_aliases: dict = None):
+                 action_aliases: dict = None, few_shot_examples: list = None):
         self.prompt = prompt
         self.model = model
         self.api_url = "http://localhost:11434/api/generate"
@@ -471,6 +475,14 @@ class OllamaLLMHeuristic:
         self.dsl_name = dsl_name
         self.dsl_description = dsl_description
         self.action_aliases = action_aliases or {}
+
+        # --- Few-Shot Injection ---
+        self.few_shot_examples = few_shot_examples or []
+        self.examples_str = ""
+        if self.few_shot_examples:
+            self.examples_str = f"\nHere are some reference examples mapping intents to {self.dsl_name} code:\n"
+            for ex in self.few_shot_examples:
+                self.examples_str += f"- Intent: {ex['nl']}\n  Code: {ex['code']}\n"
 
     def predict_and_evaluate(self, state: Tuple[str, ...], valid_actions: List[Tuple[str, ...]]) -> Tuple[Dict[Tuple[str, ...], float], float]:
         # 1. Short-circuit: If there's only 1 valid grammar rule, bypass the LLM completely.
@@ -497,6 +509,7 @@ class OllamaLLMHeuristic:
         sys_instruction = (
             f"You are a coding assistant guiding a {self.dsl_name} code generator. "
             "Evaluate the given 'Partial Code' against the 'User Intent'. "
+            f"{self.examples_str}\n"
             "You are provided with 'Valid Next Actions' to replace the leftmost '<...>' placeholder. "
             "Return a JSON object with strictly two keys:\n"
             "1. 'action_scores': A dictionary mapping the action index (string) to a score (1.0 to 10.0) based on how likely it solves the intent.\n"
@@ -573,6 +586,7 @@ class OllamaLLMHeuristic:
         sys_instruction = (
             f"You are a strict, expert {self.dsl_name} code evaluator. "
             f"You will be given a User Intent, the generated {self.dsl_name} Code, and its corresponding parsed AST (Abstract Syntax Tree). "
+            f"{self.examples_str}\n"
             "Your job is to determine how accurately the code implements the User Intent. "
             "Return a JSON object with a single key 'reward' mapping to a float between 0.0 and 1.0. "
             "1.0 means perfect semantic match. 0.0 means it completely fails to fulfill the user's requirements."
@@ -654,6 +668,38 @@ class OllamaLLMHeuristic:
             print(f"[Extraction Error]: {e}")
             return {"identifiers": [], "integer_literals": []}
 
+    def evaluate_compiler_error(self, state: tuple, error_msg: str) -> float:
+        cache_key = ("error_eval", tuple(state), error_msg)
+        if cache_key in self.cache: return self.cache[cache_key]
+
+        sys_instruction = (
+            f"You are an expert {self.dsl_name} debugger. "
+            "A code generator produced a partial snippet, which was automatically completed into a stub to check viability. "
+            f"{self.examples_str}\n"  # <--- INJECTED HERE
+            "The compiler returned an error on the stub. "
+            "Analyze if the compiler error is caused by a fundamental flaw in the 'Partial Code' prefix, "
+            "or if it is merely an artifact of a poor automatic completion. "
+            "Return a JSON object with a single key 'viability_score' mapping to a float between 0.0 and 1.0. "
+            "Score 0.0 if the Partial Code is irreversibly broken. Score > 0.5 if the Partial Code is fine and the error is just a completion artifact."
+        )
+        
+        user_msg = f"Partial Code: {''.join(state)}\nCompiler Error: {error_msg}"
+        payload = {
+            "model": self.model,
+            "prompt": f"{sys_instruction}\n\n{user_msg}",
+            "format": "json",
+            "stream": False,
+            "options": {"temperature": 0.0}
+        }
+        try:
+            import requests, json
+            response = requests.post(self.api_url, headers=self.headers, json=payload, timeout=30)
+            score = float(json.loads(response.json()["thinking"]).get("viability_score", 0.0))
+        except Exception:
+            score = 0.0
+            
+        self.cache[cache_key] = score
+        return score
 
 # =====================================================================
 # 4. Test Execution
@@ -681,7 +727,8 @@ if __name__ == "__main__":
         model=model,
         dsl_name="MiniZinc",
         dsl_description="constraint programming",
-        action_aliases=minizinc_aliases
+        action_aliases=minizinc_aliases,
+        few_shot_examples=minizinc_few_shot_examples
     ) 
     
     extracted_data = llm.extract_entities(prompt=nl_prompt)
@@ -693,7 +740,7 @@ if __name__ == "__main__":
     mcts = NeurosymbolicMCTS(env=env, llm_policy=llm, c_puct=1.5)
     
     initial_ast = ("<Model>",)
-    final_code = mcts.generate_code(initial_ast, max_steps=200, num_simulations=100)
+    final_code = mcts.generate_code(initial_ast, max_steps=200, num_simulations=50)
     
     print("\n--- Final Generated MiniZinc Code ---")
     print(final_code)

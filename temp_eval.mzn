@@ -1,3 +1,3 @@
 var bool: a;
-constraint 10 > 10;
+constraint a;
 solve satisfy;
