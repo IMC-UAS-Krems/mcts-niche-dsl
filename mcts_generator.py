@@ -155,6 +155,54 @@ class NeurosymbolicMCTS:
         # If all retries failed, return False and the last error message
         return False, previous_errors[-1][1] if previous_errors else "Unknown Rollout Error"
 
+    import random
+
+    def fast_stochastic_rollout(self, state: Tuple[str, ...], max_trials: int = 15) -> bool:
+        """
+        Attempts to find a compiling stub by rapidly generating pseudo-random completions.
+        Bypasses the LLM entirely to maximize MCTS simulation throughput.
+        """
+        for attempt in range(max_trials):
+            current_state = state
+            depth = 0
+            max_depth = 40 
+            
+            while not self.env.is_terminal(current_state) and depth < max_depth:
+                valid_actions = self.env.get_valid_actions(current_state)
+                if not valid_actions: 
+                    break
+                
+                idx = self.env._get_leftmost_nt(current_state)
+                current_nt = current_state[idx] if idx != -1 else None
+                
+                # --- ANTI-RECURSION FILTER ---
+                # Strictly filter out any action that loops back on the current non-terminal
+                safe_actions = [a for a in valid_actions if current_nt not in a]
+                
+                # Fallback just in case the grammar design forces a recursive step
+                if not safe_actions:
+                    safe_actions = valid_actions
+                
+                # --- STOCHASTIC SELECTION ---
+                # Randomly pick a safe action. This ensures every trial generates a different stub.
+                # Because we removed recursion, the stub will naturally be minimal/short.
+                action = random.choice(safe_actions)
+                
+                current_state = self.env.apply_action(current_state, action)
+                depth += 1
+                
+            # Evaluate the completed stub
+            if self.env.is_terminal(current_state):
+                code = "".join(current_state)
+                # Use the fast compiler check (no LLM overhead)
+                is_valid, _ = self.env.check_compilation_with_feedback(code)
+                
+                if is_valid:
+                    return True # Success! We proved this MCTS branch is semantically viable.
+                    
+        # If we exhausted all trials and none compiled, it's highly likely a dead-end
+        return False    
+
     def search(self, initial_state: Tuple[str, ...], num_simulations: int = 50, rollout_weight: float = 0.5) -> Tuple[str, ...]:
         root = MCTSNode(state=initial_state, prior_prob=1.0)
 
@@ -165,7 +213,7 @@ class NeurosymbolicMCTS:
             while node.is_expanded() and not self.env.is_terminal(node.state):
                 action, node = node.get_best_child(self.c_puct)
 
-            print(f"[DEBUG SEARCH] Node Selected: {node.state}")
+            # print(f"[DEBUG SEARCH] Node Selected: {node.state}")
             # 2. Evaluation & Expansion
             if not self.env.is_terminal(node.state):
                 valid_actions = self.env.get_valid_actions(node.state)
@@ -179,13 +227,15 @@ class NeurosymbolicMCTS:
                 
                 node.expand(action_probs, self.env)
 
-                is_viable, error_msg = self.fast_safe_rollout(node.state)
-                if not is_viable:
-                    print(f"  [Rollout Failed] Compiler error: {error_msg}")
+                # Execute the fast stochastic stub trials
+                is_viable = self.fast_stochastic_rollout(node.state, max_trials=50)
+                
                 if is_viable:
-                    final_value = llm_value 
+                    final_value = llm_value # Trust the LLM intent heuristic
+                    # print(f"  [Rollout Success] Found a viable stub. LLM State Value: {llm_value}")
                 else:
-                    final_value = self.llm.evaluate_compiler_error(node.state, error_msg)
+                    final_value = 0.0 # Branch is a semantic dead-end
+                    # print(f"  [Rollout Failed] No valid compilation found.")
             else:
                 # 3. Terminal Reward
                 base_reward = self.env.compute_reward(node.state)
@@ -842,7 +892,7 @@ if __name__ == "__main__":
     mcts = NeurosymbolicMCTS(env=env, llm_policy=llm, c_puct=1.5)
     
     initial_ast = ("<Model>",)
-    final_code = mcts.generate_code(initial_ast, max_steps=200, num_simulations=50)
+    final_code = mcts.generate_code(initial_ast, max_steps=200, num_simulations=200)
     
     print("\n--- Final Generated MiniZinc Code ---")
     print(final_code)
