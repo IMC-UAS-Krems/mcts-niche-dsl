@@ -1,4 +1,7 @@
 var int: a;
-constraint a - 10 != 10 - a -> 10 * a <= a * 10;
-solve minimize a;
+constraint 10;
+constraint sum(a) == a;
+constraint sum(a) == a;
+constraint sum(a) == a \/ a == a;
+solve satisfy;
 output [show(a)];

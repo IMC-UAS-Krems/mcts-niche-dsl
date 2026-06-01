@@ -576,28 +576,33 @@ class OllamaLLMHeuristic:
         if cache_key in self.cache: return self.cache[cache_key]
 
         state_str = "".join(state)
+        
+        # Build the annotated actions dictionary using ONLY externally injected aliases
         actions_dict = {}
         for i, action in enumerate(valid_actions):
             action_str = "".join(action)
-            explanation = self.action_aliases.get(action_str.strip(), "")
+            # Check for exact tuple match first (for structural rules), then string match (for operators)
+            explanation = self.action_aliases.get(action) or self.action_aliases.get(action_str.strip(), "")
             actions_dict[str(i)] = f"'{action_str}' ({explanation})" if explanation else f"'{action_str}'"
         
-        # --- THE FIX: CoT Prompting and Explicit Penalties ---
+        # --- THE FIX: FORCED ALIGNMENT PROMPT ---
         sys_instruction = (
-            f"You are a highly logical and strict {self.dsl_name} coding assistant. "
-            "Your task is to evaluate the 'Partial Code' and score the 'Valid Next Actions' based on the 'User Intent'.\n\n"
+            f"You are a strict syntactic tree-search router for a {self.dsl_name} grammar. "
+            "YOU ARE NOT WRITING CODE DIRECTLY. Your job is to choose the best production rule to expand the leftmost `<...>` placeholder in the 'Partial Code'.\n\n"
             "CRITICAL RULES:\n"
-            "1. STRICT TYPE MATCHING: Read the User Intent carefully. If it asks for an 'integer', you MUST score 'int' actions 10.0 and 'bool' actions 0.0. If it asks for 'boolean', score 'bool' 10.0 and 'int' 0.0.\n"
-            "2. PARSIMONY (SIMPLICITY): Always prefer the shortest, most direct logical path. Heavily penalize actions that add unnecessary math operators, redundant expressions, or infinite loops.\n"
-            "3. FORWARD PROGRESS: Score actions high that move the code closer to completion. Score 0.0 for actions that contradict the intent.\n\n"
+            "1. READ THE OPTIONS: You MUST strictly evaluate the provided dictionary of 'Valid Next Actions' and their explanations.\n"
+            "2. MANAGE STRUCTURE: If an option continues a recursive loop (adding more elements) when the intent is already satisfied, score it 0.0. If an option acts as a 'Base Case' (stopping expansion) exactly when needed, score it 10.0.\n"
+            "3. MATCH SEMANTICS: Strictly align your choice with the types, operations, and limits requested in the intent. Score contradictory actions 0.0.\n"
+            "4. KEEP IT SIMPLE: Heavily penalize actions that introduce unnecessary complexity.\n"
+            "5. SCORE ALIGNMENT: Your 'action_scores' MUST mathematically reflect your 'reasoning'. The action you identify as the best MUST get the highest score (e.g., 10.0), and rejected actions MUST get 0.0.\n\n"
             f"{self.examples_str}\n"
             "You MUST return a JSON object with strictly THREE keys:\n"
-            "1. 'reasoning': A short string (1-2 sentences) explaining which types are needed and which action is the simplest and most correct. Take the possible actions from the list of valid actions below.\n"
-            "2. 'action_scores': A dictionary mapping the action index (string) to a score (0.0 to 10.0).\n"
-            "3. 'state_value': A float (0.0 to 1.0) estimating the quality and simplicity of the Partial Code.\n"
+            "1. 'reasoning': Step 1: Analyze the structural requirements. Step 2: Compare the Valid Next Actions. Step 3: Explicitly state the string index (e.g., '0' or '1') of the best action.\n"
+            "2. 'action_scores': A dict mapping the action index (string) to a score (0.0 to 10.0). The index chosen in Step 3 MUST have the highest score.\n"
+            "3. 'state_value': A float strictly between 0.0 and 1.0 estimating the viability of the Partial Code.\n"
         )
         
-        import json
+        import requests, json
         user_msg = (
             f"User Intent: {self.prompt}\n"
             f"Partial Code: {state_str}\n"
@@ -615,35 +620,52 @@ class OllamaLLMHeuristic:
         try:
             import requests, json
             response = requests.post(self.api_url, headers=self.headers, json=payload, timeout=30)
-            
-            # Use 'response' or 'thinking' depending on how Ollama wraps the output
-            llm_output = json.loads(response.json().get("response", response.json().get("thinking", "{}")))
-            
-            # Optional: Print reasoning to monitor why the LLM makes its choices!
-            print(f"\n[LLM Reasoning] {llm_output.get('reasoning', 'None')}")
-            print(f"[LLM Action Scores] {llm_output.get('action_scores', {})}")
-            print(f"Posssible actions were: {actions_dict}")
-            print(f"[LLM State Value] {llm_output.get('state_value', 0.5)}")
+            llm_text = response.json().get("response", response.json().get("thinking", "{}"))
+            llm_output = json.loads(llm_text)
             
             scores = llm_output.get("action_scores", {})
-            state_value = float(llm_output.get("state_value", 0.5))
-            # renormalize state_value to a number between 0 and 1
-            state_value = max(0.0, min(state_value, 1.0))
+            # print(f"[LLM Heuristic] Valid actions received: {actions_dict}")
+            # print(f"[LLM Heuristic] Action Scores: {scores}, State Value: {llm_output.get('state_value', 'N/A')}")
+            # print(f"[LLM Heuristic] Reasoning: {llm_output.get('reasoning', 'No reasoning provided.')}")
+
+            # --- DEFENSIVE CLAMPING ---
+            # Ensure state_value strictly remains between 0.0 and 1.0, even if the LLM hallucinates
+            raw_state_value = float(llm_output.get("state_value", 0.5))
+            state_value = max(0.0, min(1.0, raw_state_value))
             
             action_probs = {}
             total_score = 0.0
+            
             for i, action in enumerate(valid_actions):
-                score = float(scores.get(str(i), 1.0))
+                idx_str = str(i)
+                action_str = "".join(action)
+                
+                if idx_str in scores:
+                    score = float(scores[idx_str])
+                else:
+                    matched_score = 0.0
+                    for k, v in scores.items():
+                        if action_str in k:
+                            matched_score = float(v)
+                            break
+                    score = matched_score 
+
+                # Clamp the action score to prevent negative probabilities
+                score = max(0.0, score)
+                
                 action_probs[action] = score
                 total_score += score
                 
+            # Normalization
             if total_score > 0:
-                for a in action_probs: action_probs[a] /= total_score
+                for a in action_probs: 
+                    action_probs[a] /= total_score
             else:
-                raise ValueError("Total score is 0.")
+                prob = 1.0 / len(valid_actions)
+                for a in action_probs: 
+                    action_probs[a] = prob
 
         except Exception as e:
-            # print(f"[Predict Error] {e}")
             prob = 1.0 / len(valid_actions)
             action_probs = {action: prob for action in valid_actions}
             state_value = 0.5
@@ -653,29 +675,29 @@ class OllamaLLMHeuristic:
     
     def evaluate_code(self, prompt: str, code: str, ast: dict) -> float:
         """
-        LLM-as-a-Judge: Evaluates the terminal MiniZinc code against the natural language intent,
-        using Chain-of-Thought reasoning to rigorously check types, logic, and parsimony.
+        LLM-as-a-Judge: Evaluates the terminal code against the natural language intent,
+        using Strict Chain-of-Thought reasoning to align text analysis with numerical rewards.
         """
         cache_key = ("eval", code)
         if cache_key in self.cache:
             return self.cache[cache_key]
 
-        # --- THE FIX: CoT Prompting and Strict Grading Rubric ---
+        # --- THE FIX: FORCED ALIGNMENT JUDGE PROMPT ---
         sys_instruction = (
             f"You are a strict, expert {self.dsl_name} code evaluator. "
             f"You will be given a 'User Intent', the generated '{self.dsl_name} Code', and its parsed 'AST'. "
             "Your job is to determine how accurately the code implements the intent.\n\n"
             "CRITICAL EVALUATION RULES:\n"
-            "1. TYPE CHECKING: Verify the requested types. If the prompt asks for an 'integer', but the code declares a 'bool' (or vice versa), the code is WRONG. Heavily penalize the score.\n"
-            "2. INTENT MATCHING: Does the constraint logic strictly match the prompt? Check the operators carefully (e.g., strictly greater is '>', not '>=').\n"
-            "3. PARSIMONY (SIMPLICITY): The code MUST be the most direct representation. Severely penalize overly complex, redundant, or weird mathematical hacks (e.g., 'x + 5 > x + x' instead of 'x > 5').\n\n"
+            "1. SEMANTIC MATCHING: Verify that the entities, types, and domain-specific structures strictly match the intent. If the prompt requests a specific type or element and the code uses an incorrect alternative, the code is WRONG. Score 0.0.\n"
+            "2. LOGICAL ACCURACY: Does the logic strictly map to the prompt? Check all operations, bounds, and relations carefully to ensure they preserve the exact meaning requested without altering conditions.\n"
+            "3. PARSIMONY (SIMPLICITY): The code MUST be the most direct representation. Severely penalize overly complex, redundant, or convoluted constructions that achieve the goal through indirect hacks.\n"
+            "4. SCORE ALIGNMENT: Your 'reward' MUST mathematically reflect your 'reasoning'. If you identify a type mismatch, logic error, or hallucination in your reasoning, the reward MUST be 0.0. If it is a perfect match, it MUST be 1.0.\n\n"
             f"{self.examples_str}\n"
             "You MUST return a JSON object with strictly TWO keys:\n"
-            "1. 'reasoning': A step-by-step evaluation checking 1) Types, 2) Logic, and 3) Simplicity.\n"
-            "2. 'reward': A float between 0.0 and 1.0. (1.0 = perfect, concise semantic match. 0.0 = complete failure, type mismatch, or convoluted hack)."
+            "1. 'reasoning': Step 1: Evaluate Semantic/Type constraints. Step 2: Evaluate Logical accuracy. Step 3: Evaluate Simplicity. Step 4: Explicitly state the final float score you will assign.\n"
+            "2. 'reward': A float strictly between 0.0 and 1.0. This MUST match the exact value decided in Step 4."
         )
         
-        # ast_to_json_serializable must be available in scope
         ast_json = ast_to_json_serializable(ast) if ast else {}
         user_msg = (
             f"User Intent: {prompt}\n"
@@ -703,17 +725,15 @@ class OllamaLLMHeuristic:
             llm_text = response_json.get("response", response_json.get("thinking", "{}"))
             llm_output = json.loads(llm_text)
             
-            # Optional: Print the Judge's reasoning to monitor grading quality
+            # Uncomment to debug the Judge's strictness!
             # print(f"\n[Judge Reasoning] {llm_output.get('reasoning', 'No reasoning provided.')}")
             
-            reward = float(llm_output.get("reward", 0.0))
-            
-            # Bound the reward
-            reward = max(0.0, min(reward, 1.0))
+            # --- DEFENSIVE CLAMPING ---
+            raw_reward = float(llm_output.get("reward", 0.0))
+            reward = max(0.0, min(1.0, raw_reward))
 
         except Exception as e:
             # print(f"  [Evaluation Error]: {e}")
-            # If the LLM fails, return a baseline reward indicating syntax passed but semantics are unknown
             reward = 0.1 
 
         self.cache[cache_key] = reward
@@ -765,7 +785,7 @@ class OllamaLLMHeuristic:
         sys_instruction = (
             f"You are an expert {self.dsl_name} debugger. "
             "A code generator produced a partial snippet, which was automatically completed into a stub to check viability. "
-            f"{self.examples_str}\n"  # <--- INJECTED HERE
+            f"{self.examples_str}\n"  
             "The compiler returned an error on the stub. "
             "Analyze if the compiler error is caused by a fundamental flaw in the 'Partial Code' prefix, "
             "or if it is merely an artifact of a poor automatic completion. "
@@ -876,7 +896,17 @@ if __name__ == "__main__":
         "/\\": "Logical AND (both)",
         "->": "Logical Implication (if/then)",
         "==": "Equality (exactly equal)",
-        "!=": "Inequality (not equal)"
+        "!=": "Inequality (not equal)",
+        
+        # Structural / Recursive CFG rules for MiniZinc
+        ("<VarDecl>", "<VarDecls>"): "Recursive: Add a variable, and keep the list open to declare MORE variables later.",
+        ("<VarDecl>",): "Base Case: Add exactly ONE variable, and STOP declaring variables.",
+        ("<Constraint>", "<Constraints>"): "Recursive: Add a constraint, and keep the list open to add MORE constraints later.",
+        ("<Constraint>",): "Base Case: Add exactly ONE constraint, and STOP adding constraints.",
+        
+        # Type specifics
+        ("int",): "Type: integer.",
+        ("bool",): "Type: boolean."
     }
 
     # 1. Initialize the Neural component (LLM)
@@ -898,7 +928,7 @@ if __name__ == "__main__":
     mcts = NeurosymbolicMCTS(env=env, llm_policy=llm, c_puct=1.5)
     
     initial_ast = ("<Model>",)
-    final_code = mcts.generate_code(initial_ast, max_steps=200, num_simulations=50)
+    final_code = mcts.generate_code(initial_ast, max_steps=200, num_simulations=150)
     
     print("\n--- Final Generated MiniZinc Code ---")
     print(final_code)
