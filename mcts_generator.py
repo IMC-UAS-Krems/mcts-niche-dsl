@@ -335,7 +335,7 @@ class MiniZincEnvironment:
         self.grammar = {
             # Phased structure now includes an optional Output phase
             "<Model>": [
-                ["<VarDecls>", "<Constraints>", "<Solve>", "<OutputOpt>"]
+                ["<VarDecls>", "<Constraints>", "<Solve>"] #, "<OutputOpt>"]
             ],
             
             # --- Variables Phase ---
@@ -403,10 +403,10 @@ class MiniZincEnvironment:
             ],
             
             # --- Output Phase (Optional) ---
-            "<OutputOpt>": [
-                ["output [show(", "<Ident>", ")];\n"], 
-                [""]  
-            ],
+            #"<OutputOpt>": [
+            #    ["output [show(", "<Ident>", ")];\n"], 
+            #    [""]  
+            #],
             
             
             # --- Pruned Terminal Nodes ---
