@@ -121,6 +121,29 @@ minizinc_few_shot_examples = [
     }
 ]
 
+# Define the domain-specific aliases here
+minizinc_aliases = {
+    "\\/": "Logical OR (either/or)",
+    "/\\": "Logical AND (both)",
+    "->": "Logical Implication (if/then)",
+    "==": "Equality (exactly equal)",
+    "!=": "Inequality (not equal)",
+    
+    # Structural / Recursive CFG rules for MiniZinc
+    ("<VarDecl>", "<VarDecls>"): "Recursive: Add a variable, and keep the list open to declare MORE variables later.",
+    ("<VarDecl>",): "Base Case: Add exactly ONE variable, and STOP declaring variables.",
+    ("<Constraint>", "<Constraints>"): "Recursive: Add a constraint, and keep the list open to add MORE constraints later.",
+    ("<Constraint>",): "Base Case: Add exactly ONE constraint, and STOP adding constraints.",
+    ("<Solve>",): "Base Case: Add a solve item (satisfy/minimize/maximize) and STOP.",
+    
+    # Type specifics
+    ("int",): "Type: integer.",
+    ("bool",): "Type: boolean.",
+    ("<IntLit>", "..", "<IntLit>"): "Range: integer from one value to another.",
+    ("set of ", "<IntLit>", "..", "<IntLit>"): "Set Type: a set of integers from one value to another.",
+    ("array[", "<IntLit>", "..", "<IntLit>", "] of var ", "<Type>"): "Array Type: an array indexed from one value to another, with elements of a certain type.",
+}
+
 class MiniZincTransformer(Transformer):
     def model(self, items):
         filtered = [item for item in items if not isinstance(item, Token) or item.type != 'SEMICOLON']

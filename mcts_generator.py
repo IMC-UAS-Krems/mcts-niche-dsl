@@ -2,7 +2,7 @@ import math
 import json
 import requests
 from typing import List, Dict, Tuple, Any, Optional
-from minizinc_parser import parse_model, ast_to_json_serializable, minizinc_few_shot_examples
+from minizinc_parser import parse_model, ast_to_json_serializable, minizinc_few_shot_examples, minizinc_aliases
 import os
 from dotenv import load_dotenv
 import subprocess
@@ -292,11 +292,11 @@ class NeurosymbolicMCTS:
             best_action, expected_reward = self.search(current_state, num_simulations)
             
             # DEAD-END DETECTION
-            if expected_reward == 0.0 and step > 0:
-                print(f"\n[FATAL] MCTS realized all forward paths from this state result in compilation errors.")
-                print(f"Trapped at state: {''.join(current_state)}")
-                print("Halting generation to prevent hallucinating broken code.")
-                break
+            # if expected_reward == 0.0 and step > 0:
+            #    print(f"\n[FATAL] MCTS realized all forward paths from this state result in compilation errors.")
+            #    print(f"Trapped at state: {''.join(current_state)}")
+            #    print("Halting generation to prevent hallucinating broken code.")
+            #    break
                 
             current_state = self.env.apply_action(current_state, best_action)
             step += 1
@@ -891,25 +891,6 @@ if __name__ == "__main__":
 
     model = os.getenv("OLLAMA_MODEL", "llama3")
     print(f"Using Ollama Model: {model}")
-
-    # Define the domain-specific aliases here
-    minizinc_aliases = {
-        "\\/": "Logical OR (either/or)",
-        "/\\": "Logical AND (both)",
-        "->": "Logical Implication (if/then)",
-        "==": "Equality (exactly equal)",
-        "!=": "Inequality (not equal)",
-        
-        # Structural / Recursive CFG rules for MiniZinc
-        ("<VarDecl>", "<VarDecls>"): "Recursive: Add a variable, and keep the list open to declare MORE variables later.",
-        ("<VarDecl>",): "Base Case: Add exactly ONE variable, and STOP declaring variables.",
-        ("<Constraint>", "<Constraints>"): "Recursive: Add a constraint, and keep the list open to add MORE constraints later.",
-        ("<Constraint>",): "Base Case: Add exactly ONE constraint, and STOP adding constraints.",
-        
-        # Type specifics
-        ("int",): "Type: integer.",
-        ("bool",): "Type: boolean."
-    }
 
     # 1. Initialize the Neural component (LLM)
     llm = OllamaLLMHeuristic(
