@@ -228,7 +228,8 @@ class NeurosymbolicMCTS:
                 node.expand(action_probs, self.env)
 
                 # Execute the fast stochastic stub trials
-                is_viable = True #self.fast_stochastic_rollout(node.state, max_trials=50)
+                # print(f"  [LLM Heuristic] Current node state: {''.join(node.state)}")
+                is_viable = self.fast_stochastic_rollout(node.state, max_trials=50)
                 
                 if is_viable:
                     final_value = llm_value # Trust the LLM intent heuristic
@@ -257,8 +258,8 @@ class NeurosymbolicMCTS:
         actions = list(root.children.keys())
         visit_counts = [child.visit_count for child in root.children.values()]
         print(f"[MCTS Search Completed] Root visit count: {root.visit_count}, Action visit counts: {visit_counts}")
-        print(f"[MCTS Search Completed] Q-values: {[child.q_value for child in root.children.values()]}")
         print(f"[MCTS Search Completed] Actions: {actions}")
+        print(f"[MCTS Search Completed] Q-values: {[child.q_value for child in root.children.values()]}")
         
         # Calculate probabilities proportional to visit counts
         total_visits = sum(visit_counts)
@@ -620,7 +621,8 @@ class OllamaLLMHeuristic:
         try:
             import requests, json
             response = requests.post(self.api_url, headers=self.headers, json=payload, timeout=30)
-            llm_text = response.json().get("response", response.json().get("thinking", "{}"))
+            # print(f"  [LLM Heuristic] Raw response: {response.text}")
+            llm_text = response.json().get("thinking", response.json().get("response", "{}"))
             llm_output = json.loads(llm_text)
             
             scores = llm_output.get("action_scores", {})
@@ -631,6 +633,7 @@ class OllamaLLMHeuristic:
             # --- DEFENSIVE CLAMPING ---
             # Ensure state_value strictly remains between 0.0 and 1.0, even if the LLM hallucinates
             raw_state_value = float(llm_output.get("state_value", 0.5))
+            print(f"  [LLM Heuristic] Raw state value: {raw_state_value}")
             state_value = max(0.0, min(1.0, raw_state_value))
             
             action_probs = {}
@@ -666,6 +669,7 @@ class OllamaLLMHeuristic:
                     action_probs[a] = prob
 
         except Exception as e:
+            print(f"  [LLM Heuristic Error]: {e}")
             prob = 1.0 / len(valid_actions)
             action_probs = {action: prob for action in valid_actions}
             state_value = 0.5
@@ -698,6 +702,7 @@ class OllamaLLMHeuristic:
             "2. 'reward': A float strictly between 0.0 and 1.0. This MUST match the exact value decided in Step 4."
         )
         
+        import json
         ast_json = ast_to_json_serializable(ast) if ast else {}
         user_msg = (
             f"User Intent: {prompt}\n"
@@ -722,7 +727,7 @@ class OllamaLLMHeuristic:
             
             # Accommodate Ollama API response formatting
             response_json = response.json()
-            llm_text = response_json.get("response", response_json.get("thinking", "{}"))
+            llm_text = response_json.get("thinking", response_json.get("response", "{}"))
             llm_output = json.loads(llm_text)
             
             # Uncomment to debug the Judge's strictness!
@@ -885,8 +890,8 @@ class OllamaLLMHeuristic:
 # 4. Test Execution
 # =====================================================================
 if __name__ == "__main__":
-    nl_prompt = "Write a MiniZinc model to find an integer a that is exactly equal to 10."
-    # nl_prompt = "Declare two booleans a and c, constrain that either a or c, and satisfy."
+    # nl_prompt = "Write a MiniZinc model to find an integer a that is exactly equal to 10."
+    nl_prompt = "Declare two booleans a and c, constrain that either a or c, and satisfy."
     print(f"NL Prompt: '{nl_prompt}'")
 
     model = os.getenv("OLLAMA_MODEL", "llama3")
@@ -911,7 +916,7 @@ if __name__ == "__main__":
     mcts = NeurosymbolicMCTS(env=env, llm_policy=llm, c_puct=1.5)
     
     initial_ast = ("<Model>",)
-    final_code = mcts.generate_code(initial_ast, max_steps=200, num_simulations=150)
+    final_code = mcts.generate_code(initial_ast, max_steps=200, num_simulations=20)
     
     print("\n--- Final Generated MiniZinc Code ---")
     print(final_code)

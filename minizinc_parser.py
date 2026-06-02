@@ -142,6 +142,8 @@ minizinc_aliases = {
     ("<IntLit>", "..", "<IntLit>"): "Range: integer from one value to another.",
     ("set of ", "<IntLit>", "..", "<IntLit>"): "Set Type: a set of integers from one value to another.",
     ("array[", "<IntLit>", "..", "<IntLit>", "] of var ", "<Type>"): "Array Type: an array indexed from one value to another, with elements of a certain type.",
+    ("var ", "<Type>", ": ", "<Ident>"): "Variable Declaration: declare a variable of a certain type with a name.",
+    ("sum(", "<Ident>", ")", " ", "<CompOp>", " ", "<MathExpr>"): "Summation: calculate the sum of elements in an array."
 }
 
 class MiniZincTransformer(Transformer):
