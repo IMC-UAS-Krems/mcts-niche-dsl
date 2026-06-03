@@ -773,7 +773,8 @@ class OllamaLLMHeuristic:
             response = requests.post(self.api_url, headers=self.headers, json=payload, timeout=30)
             # print(f"[Extraction] Raw LLM response: {response.text}")
             response.raise_for_status()
-            extracted = json.loads(response.json()["thinking"])
+            # extracted = json.loads(response.json()["thinking"])
+            extracted = json.loads(response.json().get("thinking", response.json().get("response", "{}")))
             # print(f"[Extraction] LLM output: {extracted}")
             
             # Ensure lists are returned even if the LLM hallucinates format
