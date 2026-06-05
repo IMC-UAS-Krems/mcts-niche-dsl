@@ -20,7 +20,7 @@ from baselines import (
 # =====================================================================
 # Configuration
 # =====================================================================
-BENCHMARK_FILE = "benchmark_test.json"
+BENCHMARK_FILE = "minizinc_benchmark.json"
 RESULTS_FILE = "evaluation_results.json"
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5-coder:1.5b")
 OLLAMA_JUDGE_MODEL = os.getenv("OLLAMA_JUDGE_MODEL", "qwen3.5:latest")
@@ -70,7 +70,7 @@ def run_mcts_k_times(prompt: str, judge: OllamaLLMHeuristic, search: OllamaLLMHe
         mcts = NeurosymbolicMCTS(env=env, llm_policy=search, c_puct=1.5)
         initial_ast = ("<Model>",)
         
-        code = mcts.generate_code(initial_ast, max_steps=100, num_simulations=300)
+        code = mcts.generate_code(initial_ast, max_steps=100, num_simulations=30)
         samples.append(code)
     return samples
 

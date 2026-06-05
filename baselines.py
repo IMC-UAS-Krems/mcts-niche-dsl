@@ -5,6 +5,9 @@ import subprocess
 from typing import Optional
 from minizinc_parser import parse_model # Re-use your parser from the previous steps
 
+import dotenv
+dotenv.load_dotenv()
+
 # =====================================================================
 # 1. Unified Evaluator
 # =====================================================================
@@ -55,7 +58,7 @@ def evaluate_generated_code(code: str, target_prompt: str) -> dict:
 # =====================================================================
 # Baseline 1: Zero-Shot LLM
 # =====================================================================
-def baseline_1_zero_shot(prompt: str, model: str = "qwen2.5-coder:1.5b") -> str:
+def baseline_1_zero_shot(prompt: str, model: str = "qwen2.5-coder:1.5b", token: Optional[str] = None) -> str:
     """
     Standard autoregressive generation. No grammar, no examples.
     Expected outcome: Often hallucinates syntax, includes markdown, or uses 
@@ -76,8 +79,10 @@ def baseline_1_zero_shot(prompt: str, model: str = "qwen2.5-coder:1.5b") -> str:
         "options": {"temperature": 0.2}
     }
     
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
     print("[Baseline 1] Running Zero-Shot...")
-    response = requests.post(api_url, json=payload, timeout=30)
+    # print(f"[Baseline 1] Sending request to LLM with payload: {json.dumps(payload)}")
+    response = requests.post(api_url, json=payload, headers=headers)
     response.raise_for_status()
     response_str = response.json().get("response", "")
     print(f"[Baseline 1] Received response from LLM: {response_str}")
@@ -140,7 +145,7 @@ def baseline_3_grammar_constrained(prompt: str) -> str:
     except ImportError as e:
         return f"Import Error: {e}. Please run `pip install outlines transformers torch`"
 
-    model_name = "Qwen/Qwen2.5-Coder-1.5B"
+    model_name = "Qwen/Qwen3.5-9B"
     try:
         print(f"[Baseline 3] Downloading/Loading {model_name} from HuggingFace...")
         # Load the model natively into HuggingFace first
@@ -198,12 +203,13 @@ def baseline_3_grammar_constrained(prompt: str) -> str:
 if __name__ == "__main__":
     test_prompt = "Write a MiniZinc model to find an integer a that is exactly equal to 10."
     ollama_model_name = os.getenv("OLLAMA_MODEL", "qwen2.5-coder:1.5b")
+    token = os.getenv("OLLAMA_API_KEY", None)
     
     print(f"--- EVALUATING BASELINES ---")
     print(f"Target Prompt: '{test_prompt}'\n")
 
     # 1. Zero-Shot
-    b1_code = baseline_1_zero_shot(test_prompt, ollama_model_name)
+    b1_code = baseline_1_zero_shot(test_prompt, ollama_model_name, token)
     b1_eval = evaluate_generated_code(b1_code, test_prompt)
     
     # 2. One-Shot

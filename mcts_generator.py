@@ -893,6 +893,7 @@ class OllamaLLMHeuristic:
 if __name__ == "__main__":
     # nl_prompt = "Write a MiniZinc model to find an integer a that is exactly equal to 10."
     nl_prompt = "Declare two booleans a and c, constrain that either a or c, and satisfy."
+    # nl_prompt = "Write a model to find an integer x that is strictly greater than 5. Satisfy the constraints."
     print(f"NL Prompt: '{nl_prompt}'")
 
     model = os.getenv("OLLAMA_MODEL", "llama3")
@@ -917,7 +918,7 @@ if __name__ == "__main__":
     mcts = NeurosymbolicMCTS(env=env, llm_policy=llm, c_puct=1.5)
     
     initial_ast = ("<Model>",)
-    final_code = mcts.generate_code(initial_ast, max_steps=200, num_simulations=20)
+    final_code = mcts.generate_code(initial_ast, max_steps=200, num_simulations=30)
     
     print("\n--- Final Generated MiniZinc Code ---")
     print(final_code)

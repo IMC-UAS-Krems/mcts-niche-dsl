@@ -1,4 +1,3 @@
-var bool: c;
-var bool: a;
-constraint a \/ c;
+var int: x;
+constraint x;
 solve satisfy;
