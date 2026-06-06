@@ -1,3 +1,3 @@
-var int: x;
-constraint x > 5;
+var bool: a;
+constraint a == 1;
 solve satisfy;

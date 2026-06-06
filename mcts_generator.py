@@ -7,6 +7,8 @@ import os
 from dotenv import load_dotenv
 import subprocess
 import random
+import tempfile
+import subprocess
 
 
 load_dotenv()
@@ -476,67 +478,64 @@ class MiniZincEnvironment:
         try:
             from minizinc_parser import parse_model
             parse_model(code)
-            with open("temp_stub.mzn", "w") as f:
+            
+            # --- THREAD-SAFE FILE I/O ---
+            # Create a mathematically unique temporary file
+            fd, temp_path = tempfile.mkstemp(suffix=".mzn")
+            with os.fdopen(fd, 'w') as f:
                 f.write(code)
-            import subprocess
-            result = subprocess.run(
-                ["minizinc", "--model-check-only", "temp_stub.mzn"],
-                capture_output=True, text=True, timeout=2
-            )
-            if result.returncode == 0:
-                return True, ""
-            return False, result.stderr.strip()
+                
+            try:
+                result = subprocess.run(
+                    ["minizinc", "--model-check-only", temp_path],
+                    capture_output=True, text=True, timeout=2
+                )
+                if result.returncode == 0:
+                    return True, ""
+                return False, result.stderr.strip()
+            finally:
+                # Always clean up the temporary file
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+                    
         except Exception as e:
             return False, str(e)
 
     def compute_reward(self, state: tuple) -> float:
-        """
-        First guarantees syntactic validity using Lark.
-        If valid, uses the LLM to judge semantic correctness against the prompt.
-        """
         code = "".join(state)
         
-        # 1. Syntactic Gatekeeper
         try:
+            from minizinc_parser import parse_model
             ast = parse_model(code)
         except Exception:
-            # Code is syntactically invalid - zero reward
-            return 0.0
+            return 0.0 
             
-        # We write the code to a temporary file and run `minizinc --model-check-only`
-        # This instantly catches "type error: bool compared to int"
+        # --- THREAD-SAFE FILE I/O ---
+        fd, temp_path = tempfile.mkstemp(suffix=".mzn")
+        with os.fdopen(fd, 'w') as f:
+            f.write(code)
+            
         try:
-            with open("temp_eval.mzn", "w") as f:
-                f.write(code)
-                
-            # Run MiniZinc in compile-only/check mode. 
-            # (Assumes 'minizinc' is installed and in your system PATH)
             result = subprocess.run(
-                ["minizinc", "--model-check-only", "temp_eval.mzn"],
-                capture_output=True,
-                text=True,
-                timeout=2 # Prevent infinite hangs
+                ["minizinc", "--model-check-only", temp_path],
+                capture_output=True, text=True, timeout=2
             )
-            
             if result.returncode != 0:
-                # The MiniZinc compiler found a type error or semantic issue!
-                # print(f"[Semantic Error Caught]: {result.stderr}")
                 return 0.0
-                
-        except Exception as e:
-            # If the subprocess fails for environmental reasons, fallback to 0.0
-            # print(f"[Subprocess Error]: {e}")
+        except Exception:
             return 0.0
+        finally:
+            # Always clean up the temporary file
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
         
-        # 2. Semantic Evaluation via LLM Judge
+        # Semantic Evaluation via LLM Judge
         reward = self.llm_judge.evaluate_code(
             prompt=self.target_prompt, 
             code=code, 
             ast=ast
         )
         
-        # 3. Ensure a syntactically valid script always gets at least a baseline reward (0.1)
-        #    This prevents the MCTS from abandoning perfectly valid parsing branches entirely.
         return max(0.1, min(reward, 1.0))
 
 # =====================================================================

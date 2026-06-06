@@ -1,0 +1,162 @@
+{
+  "aggregate": {
+    "Zero-Shot": {
+      "successes": 0,
+      "failures": 4
+    },
+    "One-Shot": {
+      "successes": 0,
+      "failures": 4
+    },
+    "GCD": {
+      "successes": 0,
+      "failures": 4
+    },
+    "MCTS": {
+      "successes": 0,
+      "failures": 4
+    }
+  },
+  "details": [
+    {
+      "id": 0,
+      "prompt": "Write a model to find an integer x that is strictly greater than 5. Satisfy the constraints.",
+      "evaluations": {
+        "Zero-Shot": {
+          "pass": false,
+          "samples": [
+            "```minizinc\nint: x;\n\nconstraint x > 5;\n\noutput [x];\n```",
+            "var int: x;\nconstraint x >= 6;\nsolve satisfy;\noutput [ \"x = \", show(x) ];",
+            "int_min = 6;\nint_max = 100;\nvar int: x in int_min..int_max;"
+          ]
+        },
+        "One-Shot": {
+          "pass": false,
+          "samples": [
+            "var int: x;\nconstraint x > 5;\nsolve satisfy;",
+            "var int: x;\nconstraint x > 5;\nsolve satisfy;",
+            "var int: x;\nconstraint x > 5;\nsolve satisfy;"
+          ]
+        },
+        "GCD": {
+          "pass": false,
+          "samples": [
+            "var int: x;\nconstraint x > 5;\nsolve satisfy;\n",
+            "var int: x;\nconstraint x > 5;\nsolve satisfy;\n",
+            "var int: x;\nconstraint x > 5;\nsolve satisfy;\n"
+          ]
+        },
+        "MCTS": {
+          "pass": false,
+          "samples": [
+            "var bool: x;\nconstraint x - x < 5;\nsolve satisfy;\n",
+            "var bool: x;\nconstraint x -> 5 >= x mod 5;\nsolve satisfy;\n",
+            "var int: x;\nconstraint x - x > x mod 5;\nconstraint x < 5 - 5;\nsolve satisfy;\n"
+          ]
+        }
+      }
+    },
+    {
+      "id": 1,
+      "prompt": "Find an integer y that is exactly equal to 10.",
+      "evaluations": {
+        "Zero-Shot": {
+          "pass": false,
+          "samples": [
+            "```minizinc\nint: y = 10;\nsolve satisfy {\n    y == 10\n}\n```",
+            "```minizinc\nint: y = 10;\noutput [\"y = \", show(y)];\n```",
+            "```minizinc\nvar int: y;\nconstraint y == 10;\nsolve satisfy {\n  output [\"y = \", show(y)];\n}\n```"
+          ]
+        },
+        "One-Shot": {
+          "pass": false,
+          "samples": [
+            "var int: y;\nconstraint y == 10;\nsolve satisfy;",
+            "var int: y;  \nconstraint y == 10;  \nsolve satisfy;",
+            "var int: y;\nconstraint y == 10;\nsolve satisfy;"
+          ]
+        },
+        "GCD": {
+          "pass": false,
+          "samples": [
+            "var int: y;\nconstraint y == 10;\nsolve satisfy;\n",
+            "var int: y;\nconstraint y == 10;\nsolve satisfy;\n",
+            "var int: y;\nconstraint y == 10;\nsolve satisfy;\n"
+          ]
+        },
+        "MCTS": {
+          "pass": false,
+          "samples": [
+            "var int: y;\nconstraint y / y > y / y;\nconstraint y > y mod y \\/ y < y / 10;\nsolve satisfy;\n",
+            "var int: y;\nconstraint 10 > 10 * y -> 10 > y;\nsolve satisfy;\n",
+            "var bool: y;\nconstraint y;\nconstraint y;\nsolve satisfy;\n"
+          ]
+        }
+      }
+    },
+    {
+      "id": 2,
+      "prompt": "Declare an integer z between 1 and 100. Constrain z to be less than 50 and satisfy.",
+      "evaluations": {
+        "Zero-Shot": {
+          "pass": false,
+          "error": "list index out of range"
+        },
+        "One-Shot": {
+          "pass": false,
+          "samples": [
+            "var int: z in 1..100;\nconstraint z < 50;\nsolve satisfy;",
+            "var int: z in 1..100;\nconstraint z < 50;\nsolve satisfy;",
+            "var int: z in 1..100;\nconstraint z < 50;\nsolve satisfy;"
+          ]
+        },
+        "GCD": {
+          "pass": false,
+          "samples": [
+            "var int: z;\nconstraint z < 50;\nsolve satisfy;\n",
+            "var int: z;\nconstraint z < 50;\nsolve satisfy;\n",
+            "var int: z;\nconstraint z < 50;\nsolve satisfy;\n"
+          ]
+        },
+        "MCTS": {
+          "pass": false,
+          "samples": [
+            "var 1..1: z;\nconstraint z + z > z;\nconstraint 1 > 1;\nsolve maximize z;\n",
+            "var bool: z;\nconstraint z < z;\nconstraint z;\nconstraint z != z;\nsolve minimize z;\n",
+            "var int: z;\nconstraint z - 1 > 1;\nconstraint z > 100;\nconstraint z mod z <= z - 1;\nsolve satisfy;\n"
+          ]
+        }
+      }
+    },
+    {
+      "id": 3,
+      "prompt": "Create a model with an integer a from 0 to 10, where a is not equal to 3.",
+      "evaluations": {
+        "Zero-Shot": {
+          "pass": false,
+          "error": "list index out of range"
+        },
+        "One-Shot": {
+          "pass": false,
+          "error": "list index out of range"
+        },
+        "GCD": {
+          "pass": false,
+          "samples": [
+            "var int: a;\nconstraint a != 3;\nsolve satisfy;\n",
+            "var int: a;\nconstraint a != 3;\nsolve satisfy;\n",
+            "var int: a;\nconstraint a != 3;\nsolve satisfy;\n"
+          ]
+        },
+        "MCTS": {
+          "pass": false,
+          "samples": [
+            "var int: a;\nconstraint 0 - a < a;\nconstraint 0 > 0 + a;\nsolve satisfy;\n",
+            "var int: a;\nconstraint a > 0;\nconstraint a <= a mod 10;\nconstraint a + a >= a / a;\nsolve satisfy;\n",
+            "array[0..0] of var int: a;\narray[10..10] of var 0..10: a;\nconstraint 10;\nconstraint 0 / 0 -> 10 mod a;\nsolve minimize a;\n"
+          ]
+        }
+      }
+    }
+  ]
+}

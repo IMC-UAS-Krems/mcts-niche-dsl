@@ -1,8 +1,10 @@
 import json
 import os
+import concurrent.futures
 from tqdm import tqdm
-from typing import List
+from typing import List, Dict, Any
 from dotenv import load_dotenv
+from minizinc_parser import minizinc_aliases
 
 load_dotenv()
 
@@ -28,6 +30,7 @@ OLLAMA_JUDGE_MODEL = os.getenv("OLLAMA_JUDGE_MODEL", "qwen3.5:latest")
 # K-sampling settings
 # If K=3, we generate 3 samples per method. If ANY of the 3 pass, the prompt is marked as solved.
 K_SAMPLES = 3  
+MAX_WORKERS = 4 
 
 # =====================================================================
 # Helper: Evaluate a Single Code Sample
@@ -75,19 +78,12 @@ def run_mcts_k_times(prompt: str, judge: OllamaLLMHeuristic, search: OllamaLLMHe
     return samples
 
 # =====================================================================
-# Main Evaluation Loop
+# Worker Function (Executes 1 Prompt completely)
 # =====================================================================
-def run_benchmark():
-    print(f"Loading Benchmark from {BENCHMARK_FILE}...")
-    with open(BENCHMARK_FILE, "r") as f:
-        dataset = json.load(f)
-
-    # Initialize the LLM Judge (Reused across all evaluations)
-    minizinc_aliases = {
-        "\\/": "Logical OR (either/or)", "/\\": "Logical AND (both)",
-        "->": "Logical Implication (if/then)", "==": "Equality", "!=": "Inequality"
-    }
-
+def evaluate_single_prompt(item: dict, index: int) -> dict:
+    """Runs all 4 methods for K samples on a single prompt."""
+    prompt = item["nl"]
+    
     print(f"Initializing LLM Judge with model '{OLLAMA_JUDGE_MODEL}'...")
     llm_judge = OllamaLLMHeuristic(
         prompt="", # Prompt is updated dynamically during eval
@@ -106,68 +102,87 @@ def run_benchmark():
         action_aliases=minizinc_aliases
     )
 
-    # Tracking Success Rates
-    results = {
+    prompt_log = {"id": index, "prompt": prompt, "evaluations": {}}
+    local_results = {
         "Zero-Shot": {"successes": 0, "failures": 0},
         "One-Shot":  {"successes": 0, "failures": 0},
         "GCD":       {"successes": 0, "failures": 0},
         "MCTS":      {"successes": 0, "failures": 0}
     }
-    
+
+    methods = {
+        "Zero-Shot": lambda: [baseline_1_zero_shot(prompt, OLLAMA_MODEL) for _ in range(K_SAMPLES)],
+        "One-Shot":  lambda: [baseline_2_one_shot_grammar(prompt, OLLAMA_MODEL) for _ in range(K_SAMPLES)],
+        "GCD":       lambda: [baseline_3_grammar_constrained(prompt) for _ in range(K_SAMPLES)],
+        "MCTS":      lambda: run_mcts_k_times(prompt, llm_judge, llm_search, K_SAMPLES)
+    }
+
+    for method_name, generate_func in methods.items():
+        try:
+            samples = generate_func()
+            passed = any(is_successful_generation(prompt, code, llm_judge) for code in samples)
+            
+            if passed:
+                local_results[method_name]["successes"] += 1
+            else:
+                local_results[method_name]["failures"] += 1
+                
+            prompt_log["evaluations"][method_name] = {"pass": passed, "samples": samples}
+            
+        except Exception as e:
+            local_results[method_name]["failures"] += 1
+            prompt_log["evaluations"][method_name] = {"pass": False, "error": str(e)}
+
+    return {"index": index, "results": local_results, "log": prompt_log}
+
+# =====================================================================
+# Main Parallel Execution
+# =====================================================================
+def run_benchmark():
+    print(f"Loading Benchmark from {BENCHMARK_FILE}...")
+    with open(BENCHMARK_FILE, "r") as f:
+        dataset = json.load(f)
+
+    # Global tracking
+    global_results = {
+        "Zero-Shot": {"successes": 0, "failures": 0},
+        "One-Shot":  {"successes": 0, "failures": 0},
+        "GCD":       {"successes": 0, "failures": 0},
+        "MCTS":      {"successes": 0, "failures": 0}
+    }
     detailed_log = []
 
-    print(f"Starting pass@{K_SAMPLES} evaluation on {len(dataset)} prompts...\n")
+    print(f"Starting pass@{K_SAMPLES} parallel evaluation on {len(dataset)} prompts (Workers: {MAX_WORKERS})...\n")
     
-    # We use tqdm for a progress bar, as 100 prompts * 4 methods * K samples takes a long time!
-    for i, item in enumerate(tqdm(dataset, desc="Evaluating Prompts")):
-        prompt = item["nl"]
-        target_code = item["code"]
-        llm_judge.prompt = prompt # Update judge context
+    # ThreadPoolExecutor handles the parallelism
+    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        # Submit all tasks to the pool
+        futures = {executor.submit(evaluate_single_prompt, item, i): i for i, item in enumerate(dataset)}
         
-        prompt_log = {"id": i, "prompt": prompt, "evaluations": {}}
-
-        # --- Evaluate Methods ---
-        methods = {
-            "Zero-Shot": lambda: [baseline_1_zero_shot(prompt, OLLAMA_MODEL) for _ in range(K_SAMPLES)],
-            "One-Shot":  lambda: [baseline_2_one_shot_grammar(prompt, OLLAMA_MODEL) for _ in range(K_SAMPLES)],
-            "GCD":       lambda: [baseline_3_grammar_constrained(prompt) for _ in range(K_SAMPLES)],
-            "MCTS":      lambda: run_mcts_k_times(prompt, llm_judge, llm_search, K_SAMPLES)
-        }
-
-        for method_name, generate_func in methods.items():
+        # Process them as they complete
+        for future in tqdm(concurrent.futures.as_completed(futures), total=len(dataset), desc="Evaluating Prompts"):
             try:
-                samples = generate_func()
+                task_output = future.result()
                 
-                # pass@k logic: Check if AT LEAST ONE sample is correct
-                passed = False
-                for sample_code in samples:
-                    if is_successful_generation(prompt, sample_code, llm_judge):
-                        passed = True
-                        break # We only need one pass to satisfy pass@k
-                        
-                if passed:
-                    results[method_name]["successes"] += 1
-                else:
-                    results[method_name]["failures"] += 1
+                # Safely merge local thread results into global tracking
+                for method in global_results:
+                    global_results[method]["successes"] += task_output["results"][method]["successes"]
+                    global_results[method]["failures"]  += task_output["results"][method]["failures"]
+                
+                detailed_log.append(task_output["log"])
+                
+                # Incremental Save
+                with open(RESULTS_FILE, "w") as f:
+                    json.dump({"aggregate": global_results, "details": detailed_log}, f, indent=2)
                     
-                prompt_log["evaluations"][method_name] = {"pass": passed, "samples": samples}
-                
             except Exception as e:
-                print(f"\n[Error] {method_name} failed on prompt {i}: {e}")
-                results[method_name]["failures"] += 1
-                prompt_log["evaluations"][method_name] = {"pass": False, "error": str(e)}
-
-        detailed_log.append(prompt_log)
-        
-        # Save intermediate results so you don't lose data if it crashes
-        with open(RESULTS_FILE, "w") as f:
-            json.dump({"aggregate": results, "details": detailed_log}, f, indent=2)
+                print(f"\n[Fatal Worker Error] Task failed: {e}")
 
     # --- Print Final Metrics ---
     print("\n" + "="*50)
     print(f"FINAL pass@{K_SAMPLES} ACCURACY ({len(dataset)} Prompts)")
     print("="*50)
-    for method, metrics in results.items():
+    for method, metrics in global_results.items():
         total = metrics["successes"] + metrics["failures"]
         accuracy = (metrics["successes"] / total) * 100 if total > 0 else 0
         print(f"{method:>12}: {accuracy:.1f}% ({metrics['successes']}/{total})")

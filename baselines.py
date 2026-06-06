@@ -4,9 +4,15 @@ import requests
 import subprocess
 from typing import Optional
 from minizinc_parser import parse_model # Re-use your parser from the previous steps
-
+import threading
 import dotenv
 dotenv.load_dotenv()
+
+# =====================================================================
+# Global Variables for Baseline 3 Singleton
+# =====================================================================
+_outlines_model = None
+_baseline3_lock = threading.Lock()
 
 # =====================================================================
 # 1. Unified Evaluator
@@ -132,70 +138,66 @@ def baseline_2_one_shot_grammar(prompt: str, model: str = "qwen2.5-coder:1.5b") 
 def baseline_3_grammar_constrained(prompt: str) -> str:
     """
     Uses outlines to compile the EBNF grammar into a Finite State Machine.
-    The logits of the LLM are masked at every token step.
-    Expected outcome: 100% Syntactic Pass Rate. However, because it lacks lookahead, 
-    it often falls into "Semantic Dead-Ends" (e.g., forcing a boolean into an integer constraint).
+    Thread-safe implementation: Loads the model only ONCE and processes 
+    generations sequentially to prevent OOM errors and PyTorch crashes.
     """
-    print("[Baseline 3] Loading Transformers and Outlines (this may take a moment)...")
+    global _outlines_model
     
-    try:
-        import outlines
-        import torch
-        from transformers import AutoModelForCausalLM, AutoTokenizer
-    except ImportError as e:
-        return f"Import Error: {e}. Please run `pip install outlines transformers torch`"
+    # Acquire the lock. Only one thread can be inside this block at a time.
+    with _baseline3_lock:
+        try:
+            import outlines
+            from outlines.types import CFG
+            from transformers import AutoModelForCausalLM, AutoTokenizer
+        except ImportError as e:
+            return f"Import Error: {e}. Please run `pip install outlines transformers torch`"
 
-    model_name = "Qwen/Qwen3.5-9B"
-    try:
-        print(f"[Baseline 3] Downloading/Loading {model_name} from HuggingFace...")
-        # Load the model natively into HuggingFace first
-        hf_model = AutoModelForCausalLM.from_pretrained(model_name, device_map="cpu")
-        tokenizer = AutoTokenizer.from_pretrained(model_name)
-        
-        # Use the latest Outlines API to wrap the model
-        if hasattr(outlines, "from_transformers"):
-            model = outlines.from_transformers(hf_model, tokenizer)
-        else:
-            return "Error: Please update outlines to the latest version (`pip install -U outlines`)."
-            
-    except Exception as e:
-        return f"Error loading model: {e}"
+        # If the model hasn't been loaded yet by a previous thread, load it now
+        if _outlines_model is None:
+            print("\n[Baseline 3] Loading HF Model ONCE into shared memory...")
+            model_name = "Qwen/Qwen2.5-Coder-1.5B"
+            try:
+                hf_model = AutoModelForCausalLM.from_pretrained(model_name, device_map="cpu")
+                tokenizer = AutoTokenizer.from_pretrained(model_name)
+                
+                if hasattr(outlines, "from_transformers"):
+                    _outlines_model = outlines.from_transformers(hf_model, tokenizer)
+                else:
+                    return "Error: Please update outlines (`pip install -U outlines`)."
+            except Exception as e:
+                return f"Error loading model: {e}"
 
-    # We provide the Lark EBNF format (from your original MINIZINC_GRAMMAR)
-    ebnf_grammar = r"""
-        ?start: model
-        model: var_decl constraint solve
-        
-        var_decl: "var " type ": " IDENT ";" "\n"
-        type: "int" | "bool"
-        
-        constraint: "constraint " IDENT " " op " " int_lit ";" "\n"
-        op: "==" | ">" | "<" | "!="
-        
-        solve: "solve satisfy;" "\n" | "solve maximize " IDENT ";" "\n"
-        
-        IDENT: /[a-zA-Z_][a-zA-Z0-9_]*/
-        int_lit: /[0-9]+/
-    """
-    
-    print("[Baseline 3] Compiling FSM from Grammar...")
-    try:
-        # Import the CFG type wrapper from the new API
-        from outlines.types import CFG
-        
-        prompt_text = f"Write a MiniZinc model to fulfill this intent: {prompt}\nCode:\n"
-        
-        # NEW API: You simply call the model with the prompt and the CFG type wrapper
-        sequence = model(prompt_text, CFG(ebnf_grammar))# , max_tokens=100)
-        
-        # Clean up output parsing
-        if isinstance(sequence, list): sequence = sequence[0]
-        if "Code:\n" in sequence: sequence = sequence.split("Code:\n")[1]
+        # MiniZinc EBNF Grammar
+        ebnf_grammar = r"""
+            ?start: model
+            model: var_decl constraint solve
             
-        return sequence
-    except Exception as e:
-        import traceback
-        return f"Outlines Generation Error: {e}\n{traceback.format_exc()}"
+            var_decl: "var " type ": " IDENT ";" "\n"
+            type: "int" | "bool"
+            
+            constraint: "constraint " IDENT " " op " " int_lit ";" "\n"
+            op: "==" | ">" | "<" | "!="
+            
+            solve: "solve satisfy;" "\n" | "solve maximize " IDENT ";" "\n"
+            
+            IDENT: /[a-zA-Z_][a-zA-Z0-9_]*/
+            int_lit: /[0-9]+/
+        """
+        
+        try:
+            prompt_text = f"Write a MiniZinc model to fulfill this intent: {prompt}\nCode:\n"
+            
+            # Generate the sequence
+            sequence = _outlines_model(prompt_text, CFG(ebnf_grammar)) # , max_tokens=100)
+            
+            # Clean up output parsing
+            if isinstance(sequence, list): sequence = sequence[0]
+            if "Code:\n" in sequence: sequence = sequence.split("Code:\n")[1]
+                
+            return sequence
+        except Exception as e:
+            import traceback
+            return f"Outlines Generation Error: {e}\n{traceback.format_exc()}"
 
 # =====================================================================
 # Execution & Comparison
