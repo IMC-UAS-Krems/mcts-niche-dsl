@@ -35,26 +35,41 @@ MAX_WORKERS = 4
 # =====================================================================
 # Helper: Evaluate a Single Code Sample
 # =====================================================================
-def is_successful_generation(prompt: str, code: str, llm_judge: OllamaLLMHeuristic) -> bool:
-    """Checks Syntax, Compilation, and Intent."""
-    
-    # 1. Use the unified evaluator from baselines.py for Syntax and Compilation
+def is_successful_generation(prompt: str, code: str, llm_judge: OllamaLLMHeuristic) -> dict:
+    """Checks Syntax, Compilation, and Intent, returning detailed diagnostics."""
     eval_results = evaluate_generated_code(code, prompt)
     
-    if not eval_results["syntax_pass"] or not eval_results["compile_pass"]:
-        return False
+    # Initialize the diagnostic dictionary
+    details = {
+        "raw_code": eval_results.get("raw_code", code),
+        "syntax_pass": eval_results.get("syntax_pass", False),
+        "compile_pass": eval_results.get("compile_pass", False),
+        "error_message": eval_results.get("error", ""),
+        "judge_score": None,
+        "passed": False
+    }
+
+    # If it fails syntax or compilation, we can return early
+    if not details["syntax_pass"] or not details["compile_pass"]:
+        return details
         
-    # 2. Use the LLM Judge for Semantic Intent
-    # We must parse the AST first to feed to the judge
+    # If it compiles, evaluate semantic intent using the LLM Judge
     try:
         from minizinc_parser import parse_model
-        ast = parse_model(eval_results["raw_code"])
-        reward = llm_judge.evaluate_code(prompt=prompt, code=eval_results["raw_code"], ast=ast)
+        ast = parse_model(details["raw_code"])
+        reward = llm_judge.evaluate_code(prompt=prompt, code=details["raw_code"], ast=ast)
         
-        # A reward >= 0.8 means the code accurately reflects the prompt
-        return reward >= 0.8
-    except Exception:
-        return False
+        details["judge_score"] = reward
+        details["passed"] = reward >= 0.8
+        
+        # Optionally add a note if it compiled but failed the intent check
+        if not details["passed"]:
+            details["error_message"] = "Passed compilation, but failed semantic judge intent."
+            
+    except Exception as e:
+        details["error_message"] = f"Judge Exception: {str(e)}"
+
+    return details
 
 # =====================================================================
 # Generators Wrappers (Generating K samples)
@@ -120,18 +135,36 @@ def evaluate_single_prompt(item: dict, index: int) -> dict:
     for method_name, generate_func in methods.items():
         try:
             samples = generate_func()
-            passed = any(is_successful_generation(prompt, code, llm_judge) for code in samples)
             
-            if passed:
+            sample_evaluations = []
+            method_passed = False
+            
+            # Evaluate each generated sample in the pass@k batch
+            for code in samples:
+                eval_details = is_successful_generation(prompt, code, llm_judge)
+                sample_evaluations.append(eval_details)
+                
+                # If AT LEAST ONE sample passes, the method passes for this prompt (pass@k)
+                if eval_details["passed"]:
+                    method_passed = True
+            
+            if method_passed:
                 local_results[method_name]["successes"] += 1
             else:
                 local_results[method_name]["failures"] += 1
                 
-            prompt_log["evaluations"][method_name] = {"pass": passed, "samples": samples}
+            prompt_log["evaluations"][method_name] = {
+                "pass": method_passed, 
+                "samples": sample_evaluations
+            }
             
         except Exception as e:
             local_results[method_name]["failures"] += 1
-            prompt_log["evaluations"][method_name] = {"pass": False, "error": str(e)}
+            prompt_log["evaluations"][method_name] = {
+                "pass": False, 
+                "error": str(e),
+                "samples": []
+            }
 
     return {"index": index, "results": local_results, "log": prompt_log}
 
