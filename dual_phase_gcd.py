@@ -4,7 +4,7 @@ import outlines
 from outlines.types import CFG
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import subprocess
-from minizinc_parser import parse_model
+from minizinc_parser import parse_model, MINIZINC_GRAMMAR
 
 # =====================================================================
 # 1. MiniZinc EBNF Grammar (Strict Constraint for Phase 2)
@@ -148,7 +148,7 @@ def run_dual_phase_prototype():
     # =========================================================
     # EXTERNAL DSL INJECTION DATA
     # =========================================================
-    DSL_NAME = "MiniZinc"
+    DSL_NAME = "MaskedLanguage"
     
     ALIASES = {
         "\\/": "Logical OR (either/or)",
@@ -163,16 +163,20 @@ def run_dual_phase_prototype():
         {
             "nl": "Find an integer y exactly equal to 10.",
             "code": "var int: y;\nconstraint y == 10;\nsolve satisfy;"
+        },
+        {
+            "nl": "Find an array arr of 3 integers from 1 to 5. Constrain the sum of arr to equal 10.",
+            "code": "array[1..3] of var 1..5: arr;\nconstraint sum(arr) == 10;\nsolve satisfy;\n"
         }
     ]
     
     # target_intent = "Declare two booleans a and c, constrain that either a or c is true, and satisfy."
-    target_intent = "Write a model with integers x and y from 0 to 10. Constrain x - y to not equal 0."
+    target_intent = "Create a model with an array arr of 4 integers from 1 to 3. The sum of arr must be less than 8."
 
     sys_prompt = build_dsl_agnostic_prompt(
         dsl_name=DSL_NAME,
         target_intent=target_intent,
-        ebnf_grammar=MINIZINC_EBNF,
+        ebnf_grammar=MINIZINC_GRAMMAR,
         aliases=ALIASES,
         examples=EXAMPLES
     )
@@ -189,7 +193,7 @@ def run_dual_phase_prototype():
     print(f"\n[Phase 1] Generating Unconstrained Reasoning and {DSL_NAME} Draft...")
     
     phase_1_prompt = sys_prompt + "<think>\n"
-    phase_1_output = model(phase_1_prompt, max_new_tokens=1000) 
+    phase_1_output = model(phase_1_prompt, max_new_tokens=4000) 
     
     if isinstance(phase_1_output, list):
         phase_1_output = phase_1_output[0]
@@ -261,7 +265,7 @@ def run_dual_phase_prototype():
     # Dynamically format the Phase 2 prompt injection
     phase_2_prompt = phase_1_prompt + reasoning_text + f"\n</think>\n{code_marker}\n"
     
-    constrained_code = model(phase_2_prompt, CFG(MINIZINC_EBNF), max_new_tokens=150)
+    constrained_code = model(phase_2_prompt, CFG(MINIZINC_GRAMMAR), max_new_tokens=150)
     
     if isinstance(constrained_code, list):
         constrained_code = constrained_code[0]
