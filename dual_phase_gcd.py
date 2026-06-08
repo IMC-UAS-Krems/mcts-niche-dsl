@@ -11,26 +11,42 @@ from minizinc_parser import parse_model, MINIZINC_GRAMMAR
 # =====================================================================
 MINIZINC_EBNF = r"""
     ?start: model
-    model: var_decls constraints solve
+    model: var_decls constraints solve output_opt
     
+    // --- Variables Phase ---
     var_decls: var_decl | var_decl var_decls
-    var_decl: "var " type ": " IDENT ";" "\n"
-    type: "int" | "bool" | int_lit ".." int_lit
+    var_decl: "var " type ": " IDENT ";" "\n" | "array[" int_lit ".." int_lit "] of var " type ": " IDENT ";" "\n"
+    type: "int" | "bool" | int_lit ".." int_lit | "set of " int_lit ".." int_lit
     
+    // --- Constraints Phase ---
     constraints: constraint | constraint constraints
     constraint: "constraint " expr ";" "\n"
     
-    expr: base_bool | base_bool " " logic_op " " base_bool
-    base_bool: math_expr | math_expr " " comp_op " " math_expr
-    math_expr: term | term " " math_op " " term
+    // --- Expressions (Right-Recursive & Stratified) ---
+    expr: logic_expr
+    
+    // Level 1: Logical operations (e.g., a \/ b, c -> d)
+    logic_expr: comp_expr | comp_expr " " logic_op " " logic_expr
+    
+    // Level 2: Comparisons and Aggregators (e.g., x > 5, x in s, sum(arr) == 10)
+    comp_expr: math_expr | math_expr " " comp_op " " math_expr | "sum(" IDENT ") " comp_op " " math_expr
+    
+    // Level 3: Arithmetic (e.g., x + y, a mod b)
+    math_expr: term | term " " math_op " " math_expr
+    
+    // Level 4: Atoms
     term: IDENT | int_lit
     
-    math_op: "+" | "-" | "*" | "mod"
-    comp_op: "==" | ">" | "<" | "!=" | "<=" | ">="
-    logic_op: "\/" | "/\\" | "->"
+    // --- Operators ---
+    math_op: "+" | "-" | "*" | "/" | "mod"
+    comp_op: "==" | ">" | "<" | "!=" | "<=" | ">=" | "in"
+    logic_op: "\\/" | "/\\" | "->"
     
+    // --- Solve & Output Phase ---
     solve: "solve satisfy;" "\n" | "solve maximize " IDENT ";" "\n" | "solve minimize " IDENT ";" "\n"
+    output_opt: "output [show(" IDENT ")];" "\n" | ""
     
+    // --- Terminals ---
     IDENT: /[a-zA-Z_][a-zA-Z0-9_]*/
     int_lit: /-?[0-9]+/
 """
@@ -128,7 +144,7 @@ def build_dsl_agnostic_prompt(
 # 3. Main Dual-Phase Architecture
 # =====================================================================
 def run_dual_phase_prototype():
-    model_name = "Qwen/Qwen3-8B"
+    model_name = "Qwen/Qwen2.5-Coder-1.5B-Instruct"
     device = "cuda" if torch.cuda.is_available() else "cpu"
     
     print(f"Loading {model_name} on {device}...")
@@ -171,12 +187,12 @@ def run_dual_phase_prototype():
     ]
     
     # target_intent = "Declare two booleans a and c, constrain that either a or c is true, and satisfy."
-    target_intent = "Create a model with an array arr of 4 integers from 1 to 3. The sum of arr must be less than 8."
+    target_intent = "Find an array arr of 5 integers from 1 to 10. Constrain the sum of arr to be exactly 25."
 
     sys_prompt = build_dsl_agnostic_prompt(
         dsl_name=DSL_NAME,
         target_intent=target_intent,
-        ebnf_grammar=MINIZINC_GRAMMAR,
+        ebnf_grammar=MINIZINC_EBNF,
         aliases=ALIASES,
         examples=EXAMPLES
     )
@@ -199,7 +215,8 @@ def run_dual_phase_prototype():
         phase_1_output = phase_1_output[0]
         
     new_text = phase_1_output # [len(phase_1_prompt):].strip()
-    
+    print(f"\n--- Raw Phase 1 Output ---\n{new_text}\n-------------------------")
+
     reasoning_text = ""
     draft_code = ""
     
@@ -228,6 +245,9 @@ def run_dual_phase_prototype():
     print("\n--- Internal Thoughts ---")
     print(reasoning_text)
     print("-------------------------")
+    print("\n--- Draft Code ---")
+    print(draft_code)
+    print("------------------")
 
     # ---------------------------------------------------------
     # OPTIMISTIC EVALUATION (The Fast Path)
@@ -265,7 +285,8 @@ def run_dual_phase_prototype():
     # Dynamically format the Phase 2 prompt injection
     phase_2_prompt = phase_1_prompt + reasoning_text + f"\n</think>\n{code_marker}\n"
     
-    constrained_code = model(phase_2_prompt, CFG(MINIZINC_GRAMMAR), max_new_tokens=150)
+    constrained_code = model(phase_2_prompt, CFG(MINIZINC_EBNF), max_new_tokens=150)
+    print(f"\n--- Raw Phase 2 Output ---\n{constrained_code}\n-------------------------")
     
     if isinstance(constrained_code, list):
         constrained_code = constrained_code[0]
