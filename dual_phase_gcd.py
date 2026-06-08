@@ -4,6 +4,7 @@ import outlines
 from outlines.types import CFG
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import subprocess
+from minizinc_parser import parse_model
 
 # =====================================================================
 # 1. MiniZinc EBNF Grammar (Strict Constraint for Phase 2)
@@ -140,36 +141,75 @@ def run_dual_phase_prototype():
         
     new_text = phase_1_output # [len(phase_1_prompt):].strip()
 
-    # Scenario A: The model correctly output </think>
+    reasoning_text = ""
+    draft_code = ""
+    
+    # --- PARSE REASONING AND DRAFT CODE ---
     if "</think>" in new_text:
-        reasoning_text = new_text.split("</think>")[0].strip()
+        parts = new_text.split("</think>")
+        reasoning_text = parts[0].strip()
+        post_think_text = parts[1].strip()
         
-    # Scenario B: The model skipped </think> and went straight to ```minizinc
+        # Try to extract a code block if the model wrote one
+        if "```minizinc" in post_think_text:
+            draft_code = post_think_text.split("```minizinc")[1].split("```")[0].strip()
+        elif "```" in post_think_text:
+            draft_code = post_think_text.split("```")[1].strip()
+        else:
+            # Maybe it just wrote raw code without markdown
+            draft_code = post_think_text.strip()
+            
     elif "```minizinc" in new_text:
-        reasoning_text = new_text.split("```minizinc")[0].strip()
-        
-    # Scenario C: The model skipped </think> and used a generic ``` block
-    elif "```" in new_text:
-        reasoning_text = new_text.split("```")[0].strip()
-        
-    # Scenario D: The model hit max_new_tokens and got cut off mid-thought
+        parts = new_text.split("```minizinc")
+        reasoning_text = parts[0].strip()
+        draft_code = parts[1].split("```")[0].strip()
     else:
         reasoning_text = new_text.strip()
         
-    # Final cleanup of trailing tags just in case
     reasoning_text = reasoning_text.replace("</think>", "").strip()
         
     print("\n--- DeepSeek-R1 Internal Thoughts ---")
     print(reasoning_text)
     print("-------------------------------------")
+
     # ---------------------------------------------------------
-    # PHASE 2: Strict CFG Generation (Constrained)
+    # OPTIMISTIC EVALUATION (The Fast Path)
+    # ---------------------------------------------------------
+    if draft_code:
+        print(f"\n[Optimistic Bypass] Model generated draft code. Evaluating...")
+        
+        try:
+            # 1. Syntactic Gate
+            parse_model(draft_code)
+            
+            # 2. Semantic Compiler Gate
+            is_valid, msg = check_compilation(draft_code)
+            
+            if is_valid:
+                print("\n✅ FAST PATH SUCCESS! Draft code is perfectly valid.")
+                print("\n--- Final MiniZinc Code (Phase 1 Fast-Path) ---")
+                print(draft_code)
+                print("-----------------------------------------------")
+                return # WE ARE DONE! Skip Phase 2.
+            else:
+                print(f"❌ Compiler rejected draft: {msg}")
+                print("Falling back to Phase 2 Constraints...")
+                
+        except Exception as e:
+            print(f"❌ Syntax parser rejected draft: {str(e)[:100]}...")
+            print("Falling back to Phase 2 Constraints...")
+    else:
+        print("\n[Optimistic Bypass] No draft code detected. Proceeding to Phase 2...")
+
+    # ---------------------------------------------------------
+    # PHASE 2: Strict CFG Generation (Constrained Fallback)
     # ---------------------------------------------------------
     print("\n[Phase 2] Generating Constrained Code (CFG Logits Masking)...")
     
+    # We discard the broken draft code, but KEEP the successful reasoning!
     phase_2_prompt = phase_1_prompt + reasoning_text + "\n</think>\n```minizinc\n"
     
-    constrained_code = model(phase_2_prompt, CFG(MINIZINC_EBNF), max_new_tokens=1500)
+    constrained_code = model(phase_2_prompt, CFG(MINIZINC_EBNF), max_new_tokens=150)
     
     if isinstance(constrained_code, list):
         constrained_code = constrained_code[0]
