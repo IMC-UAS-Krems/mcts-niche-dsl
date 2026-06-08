@@ -76,6 +76,7 @@ def build_dual_phase_prompt(target_intent: str, aliases: dict, examples: list) -
     sys_prompt = (
         "You are an expert MiniZinc programmer. You must translate the User Intent into valid MiniZinc code.\n"
         "First, reason deeply about the required variables, types, and logic. Enclose your reasoning in <think> and </think> tags.\n"
+        "IMPORTANT: You MUST close your reasoning with </think> BEFORE writing the code block.\n" 
         "Then, write the corresponding MiniZinc code block strictly adhering to the syntax.\n\n"
         f"{aliases_str}\n"
         f"{examples_str}"
@@ -96,7 +97,7 @@ def run_dual_phase_prototype():
     print(f"Loading {model_name} on {device}...")
     hf_model = AutoModelForCausalLM.from_pretrained(
         model_name, 
-        device_map="cpu", 
+        device_map=device, 
         attn_implementation="eager" # Safe fallback for CPU/Older GPUs
     )
     tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -129,25 +130,38 @@ def run_dual_phase_prototype():
     print("\n[Phase 1] Generating Unconstrained Reasoning (DeepSeek-R1 <think> block)...")
     
     phase_1_prompt = sys_prompt + "<think>\n"
-    print("\n--- Phase 1 Prompt ---")
-    print(phase_1_prompt)
-    print("----------------------")
-    
     phase_1_output = model(phase_1_prompt, max_new_tokens=3000)
-    print("\n--- Phase 1 Raw Output ---")
-    print(phase_1_output)
-    print("-------------------------")
+    # print("\n--- Raw Phase 1 Output ---")
+    # print(phase_1_output)
+    # print("-------------------------")
     
     if isinstance(phase_1_output, list):
         phase_1_output = phase_1_output[0]
         
-    new_text = phase_1_output[len(phase_1_prompt):].strip()
-    reasoning_text = new_text.split("</think>")[0].strip()
+    new_text = phase_1_output # [len(phase_1_prompt):].strip()
+
+    # Scenario A: The model correctly output </think>
+    if "</think>" in new_text:
+        reasoning_text = new_text.split("</think>")[0].strip()
+        
+    # Scenario B: The model skipped </think> and went straight to ```minizinc
+    elif "```minizinc" in new_text:
+        reasoning_text = new_text.split("```minizinc")[0].strip()
+        
+    # Scenario C: The model skipped </think> and used a generic ``` block
+    elif "```" in new_text:
+        reasoning_text = new_text.split("```")[0].strip()
+        
+    # Scenario D: The model hit max_new_tokens and got cut off mid-thought
+    else:
+        reasoning_text = new_text.strip()
+        
+    # Final cleanup of trailing tags just in case
+    reasoning_text = reasoning_text.replace("</think>", "").strip()
         
     print("\n--- DeepSeek-R1 Internal Thoughts ---")
     print(reasoning_text)
     print("-------------------------------------")
-
     # ---------------------------------------------------------
     # PHASE 2: Strict CFG Generation (Constrained)
     # ---------------------------------------------------------
