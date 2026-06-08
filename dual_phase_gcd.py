@@ -91,11 +91,11 @@ from minizinc_parser import MINIZINC_ALIASES, minizinc_few_shot_examples
 def build_dsl_agnostic_prompt(
     dsl_name: str,
     target_intent: str,
-    grammar_description: str,
+    ebnf_grammar: str,
     aliases: dict,
     examples: list
 ) -> str:
-    """Dynamically builds a completely DSL-agnostic prompt using injected grammar and examples."""
+    """Dynamically builds a completely DSL-agnostic prompt using the strict EBNF grammar and examples."""
     
     # 1. Build the Semantic Cheat Sheet
     aliases_str = f"{dsl_name.upper()} OPERATOR CHEAT SHEET:\n"
@@ -106,18 +106,17 @@ def build_dsl_agnostic_prompt(
     examples_str = "EXAMPLES:\n"
     for i, ex in enumerate(examples):
         examples_str += f"User Intent: {ex['nl']}\n"
-        # Synthetic thought process to prime the CoT engine
-        examples_str += f"<think>\nAnalyze intent: Identify components and map to {dsl_name} grammar structure.\n</think>\n"
+        examples_str += f"<think>\nAnalyze intent: Identify components and trace them through the {dsl_name} EBNF grammar derivation rules.\n</think>\n"
         examples_str += f"```{dsl_name.lower()}\n{ex['code']}\n```\n\n"
 
     # 3. Assemble the final grammar-informed prompt
     sys_prompt = (
         f"You are an expert {dsl_name} programmer. You must translate the User Intent into valid {dsl_name} code.\n\n"
-        f"You must strictly follow this grammar structure:\n"
-        f"{grammar_description}\n\n"
+        f"You MUST strictly adhere to the following EBNF grammar. Do not use any syntax or keywords outside of these derivation rules:\n"
+        f"```ebnf\n{ebnf_grammar.strip()}\n```\n\n"
         f"First, reason deeply about the required components, types, and logic. Enclose your reasoning in <think> and </think> tags.\n"
         "IMPORTANT: You MUST close your reasoning with </think> BEFORE writing the code block.\n"
-        f"Then, write the corresponding {dsl_name} code block strictly adhering to the provided grammar and syntax.\n\n"
+        f"Then, write the corresponding {dsl_name} code block strictly adhering to the provided EBNF grammar.\n\n"
         f"{aliases_str}\n"
         f"{examples_str}"
         f"User Intent: {target_intent}\n"
@@ -129,7 +128,7 @@ def build_dsl_agnostic_prompt(
 # 3. Main Dual-Phase Architecture
 # =====================================================================
 def run_dual_phase_prototype():
-    model_name = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
+    model_name = "Qwen/Qwen3-8B"
     device = "cuda" if torch.cuda.is_available() else "cpu"
     
     print(f"Loading {model_name} on {device}...")
@@ -151,13 +150,6 @@ def run_dual_phase_prototype():
     # =========================================================
     DSL_NAME = "MiniZinc"
     
-    GRAMMAR_DESCRIPTION = (
-        "1. <VarDecls> : e.g., 'var int: x;' or 'array[1..3] of var bool: b;'\n"
-        "2. <Constraints> : e.g., 'constraint x > 5;'\n"
-        "3. <Solve> : e.g., 'solve satisfy;' or 'solve maximize x;'\n"
-        "The code MUST follow this exact top-to-bottom order."
-    )
-    
     ALIASES = {
         "\\/": "Logical OR (either/or)",
         "/\\": "Logical AND (both)",
@@ -175,12 +167,12 @@ def run_dual_phase_prototype():
     ]
     
     # target_intent = "Declare two booleans a and c, constrain that either a or c is true, and satisfy."
-    target_intent = "Find integers a and b such that a * b is greater than or equal to 100."
+    target_intent = "Write a model with integers x and y from 0 to 10. Constrain x - y to not equal 0."
 
     sys_prompt = build_dsl_agnostic_prompt(
         dsl_name=DSL_NAME,
         target_intent=target_intent,
-        grammar_description=GRAMMAR_DESCRIPTION,
+        ebnf_grammar=MINIZINC_EBNF,
         aliases=ALIASES,
         examples=EXAMPLES
     )
@@ -197,7 +189,7 @@ def run_dual_phase_prototype():
     print(f"\n[Phase 1] Generating Unconstrained Reasoning and {DSL_NAME} Draft...")
     
     phase_1_prompt = sys_prompt + "<think>\n"
-    phase_1_output = model(phase_1_prompt, max_new_tokens=400) 
+    phase_1_output = model(phase_1_prompt, max_new_tokens=1000) 
     
     if isinstance(phase_1_output, list):
         phase_1_output = phase_1_output[0]
