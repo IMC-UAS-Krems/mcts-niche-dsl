@@ -121,6 +121,15 @@ minizinc_few_shot_examples = [
     }
 ]
 
+MINIZINC_ALIASES = {
+    "\\/": "Logical OR (either/or)",
+    "/\\": "Logical AND (both)",
+    "->": "Logical Implication (if/then)",
+    "==": "Equality (exactly equal)",
+    "!=": "Inequality (not equal)",
+    "mod": "Modulo (remainder of division)"
+}
+
 # Define the domain-specific aliases here
 minizinc_aliases = {
     "\\/": "Logical OR (either/or)",

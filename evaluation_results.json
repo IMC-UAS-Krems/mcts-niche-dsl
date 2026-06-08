@@ -1,20 +1,20 @@
 {
   "aggregate": {
     "Zero-Shot": {
-      "successes": 0,
-      "failures": 3
+      "successes": 4,
+      "failures": 19
     },
     "One-Shot": {
-      "successes": 2,
-      "failures": 1
+      "successes": 11,
+      "failures": 12
     },
     "GCD": {
-      "successes": 1,
-      "failures": 2
+      "successes": 2,
+      "failures": 21
     },
     "MCTS": {
       "successes": 0,
-      "failures": 3
+      "failures": 23
     }
   },
   "details": [
@@ -350,6 +350,2422 @@
             },
             {
               "raw_code": "var 100..100: z;\nconstraint z <= z;\nconstraint z == 100;\nconstraint 50 >= 1 * 1 -> z / 100 >= 1;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 4,
+      "prompt": "Find an integer b that is greater than or equal to 20.",
+      "evaluations": {
+        "Zero-Shot": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var int: b;\nconstraint b >= 20;\nsolve satisfy {\n  output [\"b = \", show(b)];\n}",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('LBRACE', '{') at line 3, column 15.\nExpected one of: \n\t* SEMICOLON\nPrevious ...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "int: min_b = 20;\n\nvar int: b >= min_b;\n\nsolve satisfy {\n    output [\"b = \", show(b)]\n}",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: list index out of range...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "int: b_min = 20;\n\nvar int: b >= b_min;\n\nsolve satisfy {\n    b = b_min;\n}\n\noutput [\"b = \", show(b)];",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: list index out of range...",
+              "judge_score": null,
+              "passed": false
+            }
+          ]
+        },
+        "One-Shot": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var int: b;\nconstraint b >= 20;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.1,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: b;\nconstraint b >= 20;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.1,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: b;\nconstraint b >= 20;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.1,
+              "passed": false
+            }
+          ]
+        },
+        "GCD": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var bool: b;\nconstraint b > 20;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.1,
+              "passed": false
+            },
+            {
+              "raw_code": "var bool: b;\nconstraint b > 20;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.1,
+              "passed": false
+            },
+            {
+              "raw_code": "var bool: b;\nconstraint b > 20;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.1,
+              "passed": false
+            }
+          ]
+        },
+        "MCTS": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "array[20..20] of var int: c;\nconstraint sum(c) <= 20 - 20;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: x;\nconstraint x < x;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var bool: a;\nconstraint a;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 6,
+      "prompt": "Model a problem to find a boolean variable a that must be true.",
+      "evaluations": {
+        "Zero-Shot": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var bool: a;\nconstraint a;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var bool: a;\nconstraint a = true;\nsolve satisfy;",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('EQUAL', '=') at line 2, column 14.\nExpected one of: \n\t* SUBSET\n\t* SUPERSET\n\t...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "var bool: a;\nconstraint a = true;\nsolve satisfy;",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('EQUAL', '=') at line 2, column 14.\nExpected one of: \n\t* SUBSET\n\t* SUPERSET\n\t...",
+              "judge_score": null,
+              "passed": false
+            }
+          ]
+        },
+        "One-Shot": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var bool: a;\nconstraint a;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var bool: a;\nconstraint a;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var bool: a;\nconstraint a = true;\nsolve satisfy;",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('EQUAL', '=') at line 2, column 14.\nExpected one of: \n\t* SUBSET\n\t* SUPERSET\n\t...",
+              "judge_score": null,
+              "passed": false
+            }
+          ]
+        },
+        "GCD": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var bool: a;\nconstraint a == 1;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var bool: a;\nconstraint a == 1;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var bool: a;\nconstraint a == 1;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            }
+          ]
+        },
+        "MCTS": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var int: x;\nconstraint 1 < x;\nconstraint x == 10;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: x;\nvar int: y;\nvar int: nums;\nvar int: s;\nvar int: arr;\nconstraint x >= 5 * nums;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: b;\nconstraint 0 == b / 1;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 0,
+      "prompt": "Write a model to find an integer x that is strictly greater than 5. Satisfy the constraints.",
+      "evaluations": {
+        "Zero-Shot": {
+          "pass": true,
+          "samples": [
+            {
+              "raw_code": "int: lower_bound = 6;  % Smallest integer strictly greater than 5\n\nvar int: x;\n\nconstraint x >= lower_bound;\n\nsolve satisfy {\n    output [\"x = \", show(x)]\n}\n\n% This model finds the smallest integer x strictly greater than 5 (x=6) and outputs it.",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: list index out of range...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: x;\nconstraint x > 5;\nsolve satisfy;\noutput [show(x)];",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "",
+              "judge_score": 1.0,
+              "passed": true
+            },
+            {
+              "raw_code": "int var : x;\nconstraint x > 5;\noutput [x];",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('VAR', 'var') at line 1, column 5.\nExpected one of: \n\t* COLON\nPrevious tokens...",
+              "judge_score": null,
+              "passed": false
+            }
+          ]
+        },
+        "One-Shot": {
+          "pass": true,
+          "samples": [
+            {
+              "raw_code": "var int: x;\nconstraint x > 5;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "",
+              "judge_score": 1.0,
+              "passed": true
+            },
+            {
+              "raw_code": "var int: x;\nconstraint x > 5;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "",
+              "judge_score": 1.0,
+              "passed": true
+            },
+            {
+              "raw_code": "var int: x;\nconstraint x > 5;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "",
+              "judge_score": 1.0,
+              "passed": true
+            }
+          ]
+        },
+        "GCD": {
+          "pass": true,
+          "samples": [
+            {
+              "raw_code": "var int: x;\nconstraint x > 5;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "",
+              "judge_score": 1.0,
+              "passed": true
+            },
+            {
+              "raw_code": "var int: x;\nconstraint x > 5;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "",
+              "judge_score": 1.0,
+              "passed": true
+            },
+            {
+              "raw_code": "var int: x;\nconstraint x > 5;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "",
+              "judge_score": 1.0,
+              "passed": true
+            }
+          ]
+        },
+        "MCTS": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var bool: x;\nconstraint x;\nconstraint x;\nconstraint x;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: x;\nconstraint sum(x) <= x / x;\nconstraint 5 / 5 == x;\nconstraint 5 == x \\/ x - 5 < 5;\nconstraint 5;\nconstraint 5 mod x == x \\/ sum(x) in x;\nsolve maximize x;",
+              "syntax_pass": true,
+              "compile_pass": false,
+              "error_message": "Type/Semantic Error: Error: type error: no function or predicate with this signature found: `sum(var int)'\nCannot use the...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "var 5..5: x;\nconstraint 5 + 5 > x + 5 \\/ 5 != 5;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 7,
+      "prompt": "Declare two boolean variables a and b. Constrain that both a and b are true.",
+      "evaluations": {
+        "Zero-Shot": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var bool: a;\nvar bool: b;\n\nconstraint a = true;\nconstraint b = true;",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('EQUAL', '=') at line 4, column 14.\nExpected one of: \n\t* SUBSET\n\t* SUPERSET\n\t...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "var bool: a;\nvar bool: b;\nconstraint a = true and b = true;",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('EQUAL', '=') at line 3, column 14.\nExpected one of: \n\t* SUBSET\n\t* SUPERSET\n\t...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "var bool: a;\nvar bool: b;\n\nconstraint a = true;\nconstraint b = true;",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('EQUAL', '=') at line 4, column 14.\nExpected one of: \n\t* SUBSET\n\t* SUPERSET\n\t...",
+              "judge_score": null,
+              "passed": false
+            }
+          ]
+        },
+        "One-Shot": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var bool: a;\nvar bool: b;\nconstraint a = true and b = true;\nsolve satisfy;",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('EQUAL', '=') at line 3, column 14.\nExpected one of: \n\t* SUBSET\n\t* SUPERSET\n\t...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "var bool: a;\nvar bool: b;\nconstraint a = true /\\ b = true;",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('EQUAL', '=') at line 3, column 14.\nExpected one of: \n\t* SUBSET\n\t* SUPERSET\n\t...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "var bool: a;\nvar bool: b;\nconstraint a = true /\\ b = true;\nsolve satisfy;",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('EQUAL', '=') at line 3, column 14.\nExpected one of: \n\t* SUBSET\n\t* SUPERSET\n\t...",
+              "judge_score": null,
+              "passed": false
+            }
+          ]
+        },
+        "GCD": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var bool: a;\nconstraint a == 1;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var bool: a;\nconstraint a == 1;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var bool: a;\nconstraint a == 1;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            }
+          ]
+        },
+        "MCTS": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var set of 3..5: b;\nvar set of 5..3: a;\nconstraint 0 - 5 in b;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: a;\nvar int: b;\nconstraint a / a != b * a;\nconstraint a > 0 mod b;\nconstraint a < 0;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: a;\nconstraint 10 == 10;\nconstraint a > 2;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 5,
+      "prompt": "Declare an integer x from 1 to 5. Constrain x to be less than or equal to 4 and satisfy.",
+      "evaluations": {
+        "Zero-Shot": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "int x = 1..5;\nconstraint x <= 4;\nsolve satisfy;",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('IDENT', 'x') at line 1, column 5.\nExpected one of: \n\t* COLON\nPrevious tokens...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "int: low = 1;\nint: high = 5;\n\nvar x: 1..5;\n\nconstraint x <= 4;\n\nsolve satisfy;\n\noutput [\"x = \", show(x)];",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: list index out of range...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "int x = 1..5;\nx <= 4;",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('IDENT', 'x') at line 1, column 5.\nExpected one of: \n\t* COLON\nPrevious tokens...",
+              "judge_score": null,
+              "passed": false
+            }
+          ]
+        },
+        "One-Shot": {
+          "pass": true,
+          "samples": [
+            {
+              "raw_code": "var int: x;\nconstraint x >= 1 and x <= 5 and x <= 4;\nsolve satisfy;",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('IDENT', 'and') at line 2, column 19.\nExpected one of: \n\t* SUBSET\n\t* SUPERSET...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: x;\nconstraint x >= 1;\nconstraint x <= 5;\nconstraint x <= 4;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "",
+              "judge_score": 1.0,
+              "passed": true
+            },
+            {
+              "raw_code": "var int: x;\nconstraint x >= 1 & x <= 5 & x <= 4;\nsolve satisfy;",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: No terminal matches '&' in the current parser context, at line 2 col 19\n\nconstraint x >= 1 & x <= 5 ...",
+              "judge_score": null,
+              "passed": false
+            }
+          ]
+        },
+        "GCD": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var int: x;\nconstraint x < 5;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: x;\nconstraint x < 5;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: x;\nconstraint x < 5;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            }
+          ]
+        },
+        "MCTS": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var bool: x;\nconstraint x <= x;\nconstraint x;\nsolve minimize x;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var 5..4: x;\nconstraint x / 1 <= x -> x + 5 >= x;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "array[5..4] of var int: x;\narray[1..4] of var bool: x;\nconstraint x;\nconstraint 1 mod 1 /\\ 5 in x - x;\nconstraint sum(x) > 1 /\\ x > x;\nconstraint x * x != x - x /\\ x;\nconstraint x mod x -> x * x;\n<Solve>",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: No terminal matches '\\' in the current parser context, at line 4 col 21\n\nconstraint 1 mod 1 /\\ 5 in ...",
+              "judge_score": null,
+              "passed": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 11,
+      "prompt": "Find integers a and b where a minus b is greater than 10.",
+      "evaluations": {
+        "Zero-Shot": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "int: low = -100;\nint: high = 100;\n\nvar low..high: a;\nvar low..high: b;\n\nconstraint a - b > 10;\n\nsolve satisfy;\n\noutput [\"a = \", show(a), \", b = \", show(b)];",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('MINUS', '-') at line 1, column 12.\nExpected one of: \n\t* TRUE\n\t* LSQB\n\t* /[0-...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "int: a;\nint: b;\n\nconstraint:\n  a - b > 10;\n\nsolve for a, b in -1000..1000;\n\noutput [\"a = \", show(a), \", b = \", show(b), \"\\n\"];",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('COLON', ':') at line 4, column 11.\nExpected one of: \n\t* TRUE\n\t* LSQB\n\t* /[0-...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "int: lower_bound = -1000;\nint: upper_bound = 1000;\n\nvar int: a in lower_bound..upper_bound;\nvar int: b in lower_bound..upper_bound;\n\nconstraint a - b > 10;\n\noutput [\"a = \", show(a), \", b = \", show(b)];",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('MINUS', '-') at line 1, column 20.\nExpected one of: \n\t* TRUE\n\t* LSQB\n\t* /[0-...",
+              "judge_score": null,
+              "passed": false
+            }
+          ]
+        },
+        "One-Shot": {
+          "pass": true,
+          "samples": [
+            {
+              "raw_code": "var int: a;\nvar int: b;\nconstraint a - b > 10;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "",
+              "judge_score": 1.0,
+              "passed": true
+            },
+            {
+              "raw_code": "var int: a;\nvar int: b;\nconstraint a - b > 10;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "",
+              "judge_score": 1.0,
+              "passed": true
+            },
+            {
+              "raw_code": "var int: a;\nvar int: b;\nconstraint a - b > 10;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "",
+              "judge_score": 1.0,
+              "passed": true
+            }
+          ]
+        },
+        "GCD": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var int: a;\nconstraint a > 10;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: a;\nconstraint a > 10;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: a;\nconstraint a > 10;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            }
+          ]
+        },
+        "MCTS": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var bool: b;\nvar int: a;\nconstraint 10 + 10 <= a + 10;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var set of 10..10: b;\nvar 10..10: a;\nconstraint 10 * 10 > a * 10;\nsolve minimize a;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var bool: a;\nconstraint 10 > 10;\nconstraint 10 > 10 - 10;\nsolve minimize a;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 9,
+      "prompt": "Declare booleans c and d. Constrain that c implies d.",
+      "evaluations": {
+        "Zero-Shot": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var bool: c;\nvar bool: d;\n\nconstraint d or not c;",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('IDENT', 'or') at line 4, column 14.\nExpected one of: \n\t* SUBSET\n\t* SUPERSET\n...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "c = bool;\nd = bool;\nconstraint c => d;",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: list index out of range...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "c = bool;\nd = bool;\nconstraint c => d;",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: list index out of range...",
+              "judge_score": null,
+              "passed": false
+            }
+          ]
+        },
+        "One-Shot": {
+          "pass": true,
+          "samples": [
+            {
+              "raw_code": "var bool: c;\nvar bool: d;\nconstraint c -> d;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "",
+              "judge_score": 1.0,
+              "passed": true
+            },
+            {
+              "raw_code": "var bool: c;\nvar bool: d;\nconstraint c -> d;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "",
+              "judge_score": 1.0,
+              "passed": true
+            },
+            {
+              "raw_code": "var bool: c;\nvar bool: d;\nconstraint c -> d;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "",
+              "judge_score": 1.0,
+              "passed": true
+            }
+          ]
+        },
+        "GCD": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var bool: c;\nconstraint c == 1;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var bool: c;\nconstraint c == 1;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var bool: c;\nconstraint c == 1;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            }
+          ]
+        },
+        "MCTS": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var int: x;\nconstraint x * 2 <= 0 + x;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: s;\narray[0..4] of var int: x;\nvar 3..10: arr;\narray[0..3] of var int: y;\nconstraint 10 mod 3 == 1;\nconstraint sum(x) == 4;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: z;\nconstraint sum(s) in c * 5 /\\ c - nums;\nconstraint sum(c) > y /\\ arr;\nsolve satisfy;",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: No terminal matches '\\' in the current parser context, at line 2 col 29\n\nconstraint sum(s) in c * 5 ...",
+              "judge_score": null,
+              "passed": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 10,
+      "prompt": "Write a model with two integers x and y. Constrain their sum to be exactly 15.",
+      "evaluations": {
+        "Zero-Shot": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "int: x;\nint: y;\n\nconstraint x + y == 15;\n\noutput [x, y];",
+              "syntax_pass": true,
+              "compile_pass": false,
+              "error_message": "Type/Semantic Error: Error: type error: invalid type in output item, expected `array[int] of string', actual `array[int] ...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "int: x;\nint: y;\n\nconstraint x + y == 15;\n\nsolve satisfy {\n  output [show(x) ++ \" + \" ++ show(y) ++ \" = \" ++ show(x+y)];\n}",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('LBRACE', '{') at line 6, column 15.\nExpected one of: \n\t* SEMICOLON\nPrevious ...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "int: x;\nint: y;\n\nconstraint x + y == 15;\n\noutput [x, y];",
+              "syntax_pass": true,
+              "compile_pass": false,
+              "error_message": "Type/Semantic Error: Error: type error: invalid type in output item, expected `array[int] of string', actual `array[int] ...",
+              "judge_score": null,
+              "passed": false
+            }
+          ]
+        },
+        "One-Shot": {
+          "pass": true,
+          "samples": [
+            {
+              "raw_code": "var int: x;\nvar int: y;\nconstraint x + y == 15;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "",
+              "judge_score": 1.0,
+              "passed": true
+            },
+            {
+              "raw_code": "var int: x;\nvar int: y;\nconstraint x + y == 15;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "",
+              "judge_score": 1.0,
+              "passed": true
+            },
+            {
+              "raw_code": "var int: x;\nvar int: y;\nconstraint x + y == 15;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "",
+              "judge_score": 1.0,
+              "passed": true
+            }
+          ]
+        },
+        "GCD": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var int: x;\nconstraint x == 15;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: x;\nconstraint x == 15;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: x;\nconstraint x == 15;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            }
+          ]
+        },
+        "MCTS": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var 15..15: y;\nvar int: x;\nconstraint 15 > x;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: x;\nconstraint 15 - 15 != x;\nconstraint sum(x) in 15;\nsolve minimize y;",
+              "syntax_pass": true,
+              "compile_pass": false,
+              "error_message": "Type/Semantic Error: Error: type error: undefined identifier `y', did you mean `x'?\n/data/rubenruiz/mcts-niche-dsl/temp_b...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "var set of 15..15: x;\nconstraint sum(x) in x;\nconstraint 15 > 15 -> sum(x) > x / 15;\nconstraint 15 < x + y;\nconstraint 15 / y < 15;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": false,
+              "error_message": "Type/Semantic Error: Error: type error: undefined identifier `y', did you mean `x'?\n/data/rubenruiz/mcts-niche-dsl/temp_b...",
+              "judge_score": null,
+              "passed": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 8,
+      "prompt": "Find two boolean variables, x and y, such that either x or y is true.",
+      "evaluations": {
+        "Zero-Shot": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "include \"boolean.mzn\";\n\nvar bool: x;\nvar bool: y;\n\nconstraint x \\/ y;\n\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": false,
+              "error_message": "Type/Semantic Error: Error: include error: Cannot open file 'boolean.mzn'.\n/data/rubenruiz/mcts-niche-dsl/temp_baseline.m...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "var bool: x;\nvar bool: y;\n\nconstraint x \\/ y;\n\nsolve satisfy;\n\noutput [\"x = \\(x)\", \"\\ny = \\(y)\"];",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('STRING', '\"x = \\\\(x)\"') at line 8, column 9.\nExpected one of: \n\t* TRUE\n\t* LS...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "var bool: x;\nvar bool: y;\n\nconstraint x \\/ y;\n\nsolve satisfy;\n\noutput [\"x = \\(x)\", \"\\ny = \\(y)\"];",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('STRING', '\"x = \\\\(x)\"') at line 8, column 9.\nExpected one of: \n\t* TRUE\n\t* LS...",
+              "judge_score": null,
+              "passed": false
+            }
+          ]
+        },
+        "One-Shot": {
+          "pass": true,
+          "samples": [
+            {
+              "raw_code": "var bool: x;\nvar bool: y;\nconstraint x or y;\nsolve satisfy;",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('IDENT', 'or') at line 3, column 14.\nExpected one of: \n\t* SUBSET\n\t* SUPERSET\n...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "var bool: x;\nvar bool: y;\nconstraint x \\/ y;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "",
+              "judge_score": 1.0,
+              "passed": true
+            },
+            {
+              "raw_code": "var bool: x;\nvar bool: y;\nconstraint x \\/ y;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "",
+              "judge_score": 1.0,
+              "passed": true
+            }
+          ]
+        },
+        "GCD": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var bool: x;\nconstraint x == 1;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var bool: x;\nconstraint x == 1;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var bool: x;\nconstraint x == 1;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            }
+          ]
+        },
+        "MCTS": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var int: x;\nvar bool: y;\nconstraint y;\nconstraint 0 < 1;\nconstraint x > 2;\nconstraint 6 <= 3 - 1 -> 0 * x >= x / x;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var bool: x;\nvar bool: y;\nconstraint x <= x \\/ x;\nconstraint y;\nconstraint y - x > x \\/ y;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: y;\nconstraint sum(x) <= 1 -> 2 / 3;\nconstraint sum(y) in x \\/ 10 == 1 mod x;\nsolve maximize y;",
+              "syntax_pass": true,
+              "compile_pass": false,
+              "error_message": "Type/Semantic Error: Error: type error: undefined identifier `x', did you mean `y'?\n/data/rubenruiz/mcts-niche-dsl/temp_b...",
+              "judge_score": null,
+              "passed": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 14,
+      "prompt": "Model an integer x from 1 to 20 where x modulo 2 equals 0 (x is even).",
+      "evaluations": {
+        "Zero-Shot": {
+          "pass": false,
+          "error": "list index out of range",
+          "samples": []
+        },
+        "One-Shot": {
+          "pass": true,
+          "samples": [
+            {
+              "raw_code": "var int: x;\nconstraint x >= 1;\nconstraint x <= 20;\nconstraint x mod 2 == 0;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "",
+              "judge_score": 1.0,
+              "passed": true
+            },
+            {
+              "raw_code": "var int: x;\nconstraint x >= 1;\nconstraint x <= 20;\nconstraint x mod 2 == 0;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "",
+              "judge_score": 1.0,
+              "passed": true
+            },
+            {
+              "raw_code": "var int: x;\nconstraint x >= 1;\nconstraint x <= 20;\nconstraint x mod 2 == 0;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "",
+              "judge_score": 1.0,
+              "passed": true
+            }
+          ]
+        },
+        "GCD": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var int: x;\nconstraint x > 0;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: x;\nconstraint x > 0;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: x;\nconstraint x > 0;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            }
+          ]
+        },
+        "MCTS": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var 1..1: x;\nconstraint 1;\nsolve maximize x;",
+              "syntax_pass": true,
+              "compile_pass": false,
+              "error_message": "Type/Semantic Error: Error: type error: cannot determine coercion from type int to type var bool\n/data/rubenruiz/mcts-nic...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "var bool: x;\nconstraint x == 20 * x;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: x;\nconstraint x > 20 + 20;\nconstraint x < 1;\nconstraint 20 != 20 mod x \\/ x / x < 20;\nsolve minimize x;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 15,
+      "prompt": "Find an integer y from 1 to 100 where y modulo 5 is equal to 3.",
+      "evaluations": {
+        "Zero-Shot": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "include \"int.mzn\";\n\nvar 1..100: y;\n\nconstraint y mod 5 == 3;\n\nsolve satisfy;\n\noutput [\"y = \", show(y)];",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('STRING', '\"y = \"') at line 9, column 9.\nExpected one of: \n\t* TRUE\n\t* LSQB\n\t*...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "include \"int.mzn\";\n\nvar 1..100: y;\n\nconstraint y mod 5 == 3;\n\nsolve satisfy;\n\noutput [\"y = \", show(y)];",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('STRING', '\"y = \"') at line 9, column 9.\nExpected one of: \n\t* TRUE\n\t* LSQB\n\t*...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "int: low = 1;\nint: high = 100;\nint: mod_val = 5;\nint: remainder = 3;\n\nvar int: y in low..high;\n\nconstraint y mod mod_val == remainder;\n\nsolve satisfy {\n  output [\"y = \", show(y)]\n}",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: list index out of range...",
+              "judge_score": null,
+              "passed": false
+            }
+          ]
+        },
+        "One-Shot": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var int: y;\nconstraint y >= 1;\nconstraint y <= 100;\nconstraint y mod 5 == 3;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: y;\nconstraint y >= 1;\nconstraint y <= 100;\nconstraint y mod 5 == 3;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: y;\nconstraint y >= 1;\nconstraint y <= 100;\nconstraint y mod 5 == 3;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            }
+          ]
+        },
+        "GCD": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var int: y;\nconstraint y > 0;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: y;\nconstraint y > 0;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: y;\nconstraint y > 0;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            }
+          ]
+        },
+        "MCTS": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var int: y;\nconstraint y > y;\nconstraint 3 != 100;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var 1..1: y;\nconstraint 1 > 1;\nconstraint 3 < 3;\nconstraint y <= y;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var bool: y;\nconstraint y + y > 1;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 12,
+      "prompt": "Declare integers x and y between 1 and 10. Constrain x multiplied by y to be 24.",
+      "evaluations": {
+        "Zero-Shot": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "int: x_low = 1;\nint: x_high = 10;\nint: y_low = 1;\nint: y_high = 10;\n\nvar x_low..x_high: x;\nvar y_low..y_high: y;\n\nconstraint x * y == 24;\n\nsolve satisfy;",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: list index out of range...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "int x in 1..10;\nint y in 1..10;\nconstraint x * y == 24;",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('IDENT', 'x') at line 1, column 5.\nExpected one of: \n\t* COLON\nPrevious tokens...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "int x in 1..10;\nint y in 1..10;\nconstraint x * y == 24;",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('IDENT', 'x') at line 1, column 5.\nExpected one of: \n\t* COLON\nPrevious tokens...",
+              "judge_score": null,
+              "passed": false
+            }
+          ]
+        },
+        "One-Shot": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var int: x;\nvar int: y;\nconstraint x * y == 24;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: x;\nvar int: y;\nconstraint x * y = 24;\nsolve satisfy;",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('EQUAL', '=') at line 3, column 18.\nExpected one of: \n\t* SUBSET\n\t* SUPERSET\n\t...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: x;\nvar int: y;\nconstraint x * y == 24;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            }
+          ]
+        },
+        "GCD": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var int: x;\nconstraint x > 0;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: x;\nconstraint x > 0;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: x;\nconstraint x > 0;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            }
+          ]
+        },
+        "MCTS": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var int: x;\nconstraint 24 + 1 < 1;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: x;\nvar int: y;\nconstraint y > x;\nconstraint x / 1 >= x - x -> 1 <= x + y;\nconstraint y != 24 - x;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: x;\nvar int: y;\nconstraint x > y;\nconstraint x < y - x \\/ y mod x >= x + y;\nconstraint 24 mod 24 == 10;\nconstraint x mod 10 <= 1;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 13,
+      "prompt": "Find two integers a and b such that a divided by b equals 4.",
+      "evaluations": {
+        "Zero-Shot": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "int: b_min = -1000;\nint: b_max = 1000;\n\nvar int: b in b_min..b_max;\nconstraint b != 0;\nvar int: a = 4 * b;\n\noutput [\"a = \", show(a), \", b = \", show(b)];",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('MINUS', '-') at line 1, column 14.\nExpected one of: \n\t* TRUE\n\t* LSQB\n\t* /[0-...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "int: a;\nint: b;\nconstraint a == 4 * b and b != 0;\nsolve exist {a, b} with a == 4 * b and b != 0;\noutput [\"a = \", show(a), \", b = \", show(b)];",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('IDENT', 'and') at line 3, column 23.\nExpected one of: \n\t* SUBSET\n\t* SUPERSET...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "int: a;\nint: b;\n\nconstraint a / b = 4;\n\noutput [a, b];\n```\n\nThis model finds two integers `a` and `b` such that `a` divided by `b` equals 4. The solver will find any valid pair where `b` is not zero (to avoid division by zero). For example, it might output `8, 2` or `-12, -3`.",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('EQUAL', '=') at line 4, column 18.\nExpected one of: \n\t* SUBSET\n\t* SUPERSET\n\t...",
+              "judge_score": null,
+              "passed": false
+            }
+          ]
+        },
+        "One-Shot": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var int: a;\nvar int: b;\nconstraint b != 0;\nconstraint a = 4 * b;\nsolve satisfy;",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('EQUAL', '=') at line 4, column 14.\nExpected one of: \n\t* SUBSET\n\t* SUPERSET\n\t...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: b in -10..10;\nconstraint b != 0;\nvar int: a = 4 * b;\nsolve satisfy;",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('IN', 'in') at line 1, column 12.\nExpected one of: \n\t* EQUAL\n\t* SEMICOLON\nPre...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: b in -100..100;\nconstraint b != 0;\nvar int: a = 4 * b;\nsolve satisfy;",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('IN', 'in') at line 1, column 12.\nExpected one of: \n\t* EQUAL\n\t* SEMICOLON\nPre...",
+              "judge_score": null,
+              "passed": false
+            }
+          ]
+        },
+        "GCD": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var int: a;\nconstraint a == 4;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: a;\nconstraint a == 4;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: a;\nconstraint a == 4;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            }
+          ]
+        },
+        "MCTS": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var bool: a;\nvar bool: b;\nconstraint a >= a \\/ a;\nconstraint a -> a;\nconstraint a;\nconstraint a;\nconstraint a;\nsolve minimize b;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var 4..4: b;\narray[4..4] of var set of 4..4: a;\nconstraint b <= 4;\nconstraint b mod 4 < 4 mod 4;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: b;\nconstraint b > b;\nconstraint b >= 4 - 4;\nconstraint b mod b >= b;\nsolve maximize b;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 17,
+      "prompt": "Find integers a and b such that a * b is greater than or equal to 100.",
+      "evaluations": {
+        "Zero-Shot": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "int: a_min = -1000;\nint: a_max = 1000;\nint: b_min = -1000;\nint: b_max = 1000;\n\nvar a_min..a_max: a;\nvar b_min..b_max: b;\n\nconstraint a * b >= 100;\n\nsolve satisfy;\n\noutput [\"a = \", show(a), \", b = \", show(b), \", product = \", show(a*b)];",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('MINUS', '-') at line 1, column 14.\nExpected one of: \n\t* TRUE\n\t* LSQB\n\t* /[0-...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "include \"globals.mzn\";\n\nint: low = -200;\nint: high = 200;\nvar low..high: a;\nvar low..high: b;\nconstraint a * b >= 100;\nsolve satisfy;",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('MINUS', '-') at line 3, column 12.\nExpected one of: \n\t* TRUE\n\t* LSQB\n\t* /[0-...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "int: a_min = -100;\nint: a_max = 100;\nint: b_min = -100;\nint: b_max = 100;\n\nvar a in a_min..a_max;\nvar b in b_min..b_max;\n\nconstraint a * b >= 100;\n\noutput [\"a = \", show(a), \", b = \", show(b)];",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('MINUS', '-') at line 1, column 14.\nExpected one of: \n\t* TRUE\n\t* LSQB\n\t* /[0-...",
+              "judge_score": null,
+              "passed": false
+            }
+          ]
+        },
+        "One-Shot": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var int: a;\nvar int: b;\nconstraint a * b >= 100;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: a;\nvar int: b;\nconstraint a * b >= 100;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: a;\nvar int: b;\nconstraint a * b >= 100;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            }
+          ]
+        },
+        "GCD": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var int: a;\nconstraint a > 0;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: a;\nconstraint a > 0;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: a;\nconstraint a > 0;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            }
+          ]
+        },
+        "MCTS": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "array[100..100] of var bool: b;\nvar 100..100: a;\nconstraint 100 > 100;\nconstraint 100 >= a;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: b;\nvar int: a;\nconstraint a > b * 100;\nconstraint b > 100;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var set of 100..100: b;\nvar int: a;\nconstraint 100 * 100 >= 100;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 18,
+      "prompt": "Write a model with integers x and y from 0 to 10. Constrain x - y to not equal 0.",
+      "evaluations": {
+        "Zero-Shot": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "int: min_val = 0;\nint: max_val = 10;\n\nvar min_val..max_val: x;\nvar min_val..max_val: y;\n\nconstraint x != y;\n\nsolve satisfy;\n\noutput [\"x: \", show(x), \", y: \", show(y)];",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: list index out of range...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "int: min_val = 0;\nint: max_val = 10;\n\nvar min_val..max_val: x;\nvar min_val..max_val: y;\n\nconstraint x != y;\n\nsolve satisfy;",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: list index out of range...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "int: min_val = 0;\nint: max_val = 10;\n\nvar min_val..max_val: x;\nvar min_val..max_val: y;\n\nconstraint x != y;\n\noutput [\"x: \", show(x), \", y: \", show(y)];",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: list index out of range...",
+              "judge_score": null,
+              "passed": false
+            }
+          ]
+        },
+        "One-Shot": {
+          "pass": true,
+          "samples": [
+            {
+              "raw_code": "var int: x;\nvar int: y;\nconstraint x >= 0;\nconstraint y >= 0;\nconstraint x <= 10;\nconstraint y <= 10;\nconstraint x != y;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "",
+              "judge_score": 1.0,
+              "passed": true
+            },
+            {
+              "raw_code": "var int: x;\nvar int: y;\nconstraint x >= 0;\nconstraint x <= 10;\nconstraint y >= 0;\nconstraint y <= 10;\nconstraint x - y != 0;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: x;\nvar int: y;\nconstraint x >= 0;\nconstraint y >= 0;\nconstraint x <= 10;\nconstraint y <= 10;\nconstraint x - y != 0;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.1,
+              "passed": false
+            }
+          ]
+        },
+        "GCD": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var int: x;\nconstraint x != 0;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: x;\nconstraint x != 0;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: x;\nconstraint x != 0;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            }
+          ]
+        },
+        "MCTS": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var int: x;\nvar 0..10: y;\nconstraint y == y;\nconstraint x / x != 0 / 0;\nsolve maximize y;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: x;\nconstraint 0;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": false,
+              "error_message": "Type/Semantic Error: Error: type error: cannot determine coercion from type int to type var bool\n/data/rubenruiz/mcts-nic...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: x;\nconstraint x + x;\nsolve minimize x;",
+              "syntax_pass": true,
+              "compile_pass": false,
+              "error_message": "Type/Semantic Error: Error: type error: cannot determine coercion from type var int to type var bool\n/data/rubenruiz/mcts...",
+              "judge_score": null,
+              "passed": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 16,
+      "prompt": "Declare two integers x and y. Constrain x + y to be less than or equal to 50.",
+      "evaluations": {
+        "Zero-Shot": {
+          "pass": true,
+          "samples": [
+            {
+              "raw_code": "int: x;\nint: y;\nconstraint x + y <= 50;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "int: x;\nint: y;\nconstraint x + y <= 50;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "",
+              "judge_score": 1.0,
+              "passed": true
+            },
+            {
+              "raw_code": "int: x;\nint: y;\nconstraint x + y <= 50;\noutput [ \"x: \", show(x), \", y: \", show(y) ];",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('STRING', '\"x: \"') at line 4, column 10.\nExpected one of: \n\t* TRUE\n\t* LSQB\n\t*...",
+              "judge_score": null,
+              "passed": false
+            }
+          ]
+        },
+        "One-Shot": {
+          "pass": true,
+          "samples": [
+            {
+              "raw_code": "var int: x;\nvar int: y;\nconstraint x + y <= 50;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "",
+              "judge_score": 1.0,
+              "passed": true
+            },
+            {
+              "raw_code": "var int: x;\nvar int: y;\nconstraint x + y <= 50;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "",
+              "judge_score": 1.0,
+              "passed": true
+            },
+            {
+              "raw_code": "var int: x;\nvar int: y;\nconstraint x + y <= 50;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "",
+              "judge_score": 1.0,
+              "passed": true
+            }
+          ]
+        },
+        "GCD": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var int: x;\nconstraint x < 50;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: x;\nconstraint x < 50;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: x;\nconstraint x < 50;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            }
+          ]
+        },
+        "MCTS": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var 50..50: x;\nconstraint 50 / x <= 50 + 50;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: x;\nconstraint x * x == 50;\nconstraint x < 50;\nconstraint x != 50;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var 50..50: x;\nconstraint x > 50;\nconstraint x > 50 / 50 \\/ x;\nsolve minimize x;",
+              "syntax_pass": true,
+              "compile_pass": false,
+              "error_message": "Type/Semantic Error: Error: type error: type error in operator application for `'\\/''. No matching operator found with le...",
+              "judge_score": null,
+              "passed": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 22,
+      "prompt": "Create a model with an array arr of 4 integers from 1 to 3. The sum of arr must be less than 8.",
+      "evaluations": {
+        "Zero-Shot": {
+          "pass": true,
+          "samples": [
+            {
+              "raw_code": "array[1..4] of var 1..3: arr;\nconstraint sum(arr) < 8;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "",
+              "judge_score": 1.0,
+              "passed": true
+            },
+            {
+              "raw_code": "int: n = 4;\narray [1..n] of var 1..3: arr;\nconstraint sum(arr) < 8;\nsolve { output [show(arr)]; }",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: list index out of range...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "array[1..4] of var 1..3: arr;\nconstraint sum(arr) < 8;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "",
+              "judge_score": 1.0,
+              "passed": true
+            }
+          ]
+        },
+        "One-Shot": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var int: arr = [1, 2, 3, 4];  \nconstraint sum(arr) < 8;  \nsolve satisfy;",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: list index out of range...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: arr[1..4] = {1, 2, 3, 4};\nconstraint sum(arr) < 8;",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('LSQB', '[') at line 1, column 13.\nExpected one of: \n\t* EQUAL\n\t* SEMICOLON\nPr...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: arr = [1, 2, 3, 4];  \nconstraint sum(arr) < 8;  \nsolve satisfy;",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: list index out of range...",
+              "judge_score": null,
+              "passed": false
+            }
+          ]
+        },
+        "GCD": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var int: arr04;\nconstraint forall == 1;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": false,
+              "error_message": "Type/Semantic Error: Error: type error: undefined identifier `forall'\n/data/rubenruiz/mcts-niche-dsl/temp_baseline.mzn:2....",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: arr04;\nconstraint forall == 1;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": false,
+              "error_message": "Type/Semantic Error: Error: type error: undefined identifier `forall'\n/data/rubenruiz/mcts-niche-dsl/temp_baseline.mzn:2....",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: arr04;\nconstraint forall == 1;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": false,
+              "error_message": "Type/Semantic Error: Error: type error: undefined identifier `forall'\n/data/rubenruiz/mcts-niche-dsl/temp_baseline.mzn:2....",
+              "judge_score": null,
+              "passed": false
+            }
+          ]
+        },
+        "MCTS": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var int: arr;\nconstraint arr / arr == arr;\nconstraint arr / arr > arr mod arr \\/ arr * arr != arr;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var bool: arr;\nconstraint arr \\/ 4 == arr;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: arr;\nconstraint 4 <= arr;\nconstraint arr <= arr;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 20,
+      "prompt": "Find an array arr of 5 integers from 1 to 10. Constrain the sum of arr to be exactly 25.",
+      "evaluations": {
+        "Zero-Shot": {
+          "pass": true,
+          "samples": [
+            {
+              "raw_code": "include \"globals.mzn\";\n\narray[1..5] of var 1..10: arr;\n\nconstraint sum(arr) == 25;\n\nsolve satisfy;\n\noutput [show(arr)];",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "",
+              "judge_score": 1.0,
+              "passed": true
+            },
+            {
+              "raw_code": "int: n = 5;\nint: min_val = 1;\nint: max_val = 10;\nint: target_sum = 25;\n\narray[1..n] of var int: arr;\n\nconstraint forall(i in 1..n) (arr[i] >= min_val) /\\ \n              forall(i in 1..n) (arr[i] <= max_val) /\\ \n              sum(arr) == target_sum;\n\nsolve satisfy;\n\noutput [\"arr = \", show(arr)];",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: list index out of range...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "int: n = 5;\nint: min_val = 1;\nint: max_val = 10;\nint: target_sum = 25;\n\narray[1..n] of var int: arr;\n\nconstraint forall(i in 1..n) (arr[i] >= min_val) /\\ \n        forall(i in 1..n) (arr[i] <= max_val) /\\ \n        sum(arr) == target_sum;\n\noutput [\"arr = \", show(arr)];",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: list index out of range...",
+              "judge_score": null,
+              "passed": false
+            }
+          ]
+        },
+        "One-Shot": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "array[1..5] of int: arr;\nconstraint sum(arr) == 25;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: arr = [1, 2, 3, 4, 5];\nconstraint sum(arr) == 25;\nsolve satisfy;",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: list index out of range...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: arr = [1, 2, 3, 4, 5];\nconstraint sum(arr) == 25;\nsolve satisfy;",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: list index out of range...",
+              "judge_score": null,
+              "passed": false
+            }
+          ]
+        },
+        "GCD": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var int: arr05;\nconstraint sum_of_elements == 25;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": false,
+              "error_message": "Type/Semantic Error: Error: type error: undefined identifier `sum_of_elements'\n/data/rubenruiz/mcts-niche-dsl/temp_baseli...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: arr05;\nconstraint sum_of_elements == 25;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": false,
+              "error_message": "Type/Semantic Error: Error: type error: undefined identifier `sum_of_elements'\n/data/rubenruiz/mcts-niche-dsl/temp_baseli...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: arr05;\nconstraint sum_of_elements == 25;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": false,
+              "error_message": "Type/Semantic Error: Error: type error: undefined identifier `sum_of_elements'\n/data/rubenruiz/mcts-niche-dsl/temp_baseli...",
+              "judge_score": null,
+              "passed": false
+            }
+          ]
+        },
+        "MCTS": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var set of 10..10: arr;\nconstraint arr == arr;\nconstraint arr * 5 >= 5 /\\ 5 / 25;\nsolve satisfy;",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: No terminal matches '\\' in the current parser context, at line 3 col 26\n\nconstraint arr * 5 >= 5 /\\ ...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: arr;\nconstraint 25 > arr;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: arr;\nconstraint sum(arr) != 25 \\/ arr;\nsolve minimize arr;",
+              "syntax_pass": true,
+              "compile_pass": false,
+              "error_message": "Type/Semantic Error: Error: type error: no function or predicate with this signature found: `sum(var int)'\nCannot use the...",
+              "judge_score": null,
+              "passed": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 19,
+      "prompt": "Declare integers a and b. Ensure that a mod b is strictly less than 2.",
+      "evaluations": {
+        "Zero-Shot": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "int a;\nint b;\nconstraint b != 0 /\\ (a mod b < 2);",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('IDENT', 'a') at line 1, column 5.\nExpected one of: \n\t* COLON\nPrevious tokens...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: a;\nvar int: b;\nconstraint b != 0 and a mod b < 2;",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('IDENT', 'and') at line 3, column 19.\nExpected one of: \n\t* SUBSET\n\t* SUPERSET...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "int a;\nint b;\nconstraint b != 0 and (b < 0 or (a mod b < 2));",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('IDENT', 'a') at line 1, column 5.\nExpected one of: \n\t* COLON\nPrevious tokens...",
+              "judge_score": null,
+              "passed": false
+            }
+          ]
+        },
+        "One-Shot": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var int: a;\nvar int: b;\nconstraint b != 0;\nconstraint a mod b < 2;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: a;\nvar int: b;\n\nconstraint b != 0;\nconstraint a mod b < 2;\n\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: a;\nvar int: b;\nconstraint b != 0 /\\ (a mod b < 2);\nsolve satisfy;",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: No terminal matches '\\' in the current parser context, at line 3 col 20\n\nconstraint b != 0 /\\ (a mod...",
+              "judge_score": null,
+              "passed": false
+            }
+          ]
+        },
+        "GCD": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var int: a;\nconstraint a < 2;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: a;\nconstraint a < 2;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: a;\nconstraint a < 2;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            }
+          ]
+        },
+        "MCTS": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var bool: a;\nconstraint a < 1;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: b;\nvar bool: a;\nconstraint a;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: b;\nconstraint 3 + b <= 1 + b \\/ 0 != 4;\nconstraint b < 4 * b \\/ 3 * b == b + b;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 21,
+      "prompt": "Declare an array nums of 3 integers from 0 to 5. Constrain their sum to be greater than 10.",
+      "evaluations": {
+        "Zero-Shot": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "array[1..3] of int(0..5) = [0, 0, 0]  % Initial values (optional)\nconstraint sum(array[1..3]) > 10;\noutput [\"Sum: \", show(sum(array[1..3]))];",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('LPAR', '(') at line 1, column 19.\nExpected one of: \n\t* COLON\nPrevious tokens...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "array[1..3] of int(0..5) = [0, 0, 0]  % Initial values (optional)\nconstraint sum(array[1..3]) > 10;",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: Unexpected token Token('LPAR', '(') at line 1, column 19.\nExpected one of: \n\t* COLON\nPrevious tokens...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "int: n = 3;\narray[1..n] of var 0..5: nums;\nconstraint sum(nums) > 10;\nsolve satisfy;",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: list index out of range...",
+              "judge_score": null,
+              "passed": false
+            }
+          ]
+        },
+        "One-Shot": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "array[1..3] of int: nums;\nconstraint sum(nums) > 10;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: nums = [0, 0, 0];\nconstraint sum(nums) > 10;",
+              "syntax_pass": false,
+              "compile_pass": false,
+              "error_message": "Syntax Error: list index out of range...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "array[1..3] of int: nums;\nconstraint sum(nums) > 10;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            }
+          ]
+        },
+        "GCD": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var int: nums;\nconstraint sum_of_array_elements > 10;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": false,
+              "error_message": "Type/Semantic Error: Error: type error: undefined identifier `sum_of_array_elements'\n/data/rubenruiz/mcts-niche-dsl/temp_...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: nums;\nconstraint sum_of_array_elements > 10;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": false,
+              "error_message": "Type/Semantic Error: Error: type error: undefined identifier `sum_of_array_elements'\n/data/rubenruiz/mcts-niche-dsl/temp_...",
+              "judge_score": null,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: nums;\nconstraint sum_of_array_elements > 10;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": false,
+              "error_message": "Type/Semantic Error: Error: type error: undefined identifier `sum_of_array_elements'\n/data/rubenruiz/mcts-niche-dsl/temp_...",
+              "judge_score": null,
+              "passed": false
+            }
+          ]
+        },
+        "MCTS": {
+          "pass": false,
+          "samples": [
+            {
+              "raw_code": "var int: nums;\nconstraint nums < nums + nums;\nconstraint nums > nums;\nconstraint nums * 3 >= nums / 10;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: nums;\nconstraint 0 * 3 != nums * nums \\/ nums >= nums;\nconstraint 3 / nums > nums + 10;\nsolve satisfy;",
+              "syntax_pass": true,
+              "compile_pass": true,
+              "error_message": "Passed compilation, but failed semantic judge intent.",
+              "judge_score": 0.0,
+              "passed": false
+            },
+            {
+              "raw_code": "var int: nums;\nconstraint nums - nums < 0 mod nums;\nsolve satisfy;",
               "syntax_pass": true,
               "compile_pass": true,
               "error_message": "Passed compilation, but failed semantic judge intent.",
