@@ -88,6 +88,43 @@ def build_dual_phase_prompt(target_intent: str, aliases: dict, examples: list) -
 
 from minizinc_parser import MINIZINC_ALIASES, minizinc_few_shot_examples
 
+def build_dsl_agnostic_prompt(
+    dsl_name: str,
+    target_intent: str,
+    grammar_description: str,
+    aliases: dict,
+    examples: list
+) -> str:
+    """Dynamically builds a completely DSL-agnostic prompt using injected grammar and examples."""
+    
+    # 1. Build the Semantic Cheat Sheet
+    aliases_str = f"{dsl_name.upper()} OPERATOR CHEAT SHEET:\n"
+    for operator, meaning in aliases.items():
+        aliases_str += f"- '{operator}' : {meaning}\n"
+        
+    # 2. Build the Few-Shot / One-Shot Examples Block
+    examples_str = "EXAMPLES:\n"
+    for i, ex in enumerate(examples):
+        examples_str += f"User Intent: {ex['nl']}\n"
+        # Synthetic thought process to prime the CoT engine
+        examples_str += f"<think>\nAnalyze intent: Identify components and map to {dsl_name} grammar structure.\n</think>\n"
+        examples_str += f"```{dsl_name.lower()}\n{ex['code']}\n```\n\n"
+
+    # 3. Assemble the final grammar-informed prompt
+    sys_prompt = (
+        f"You are an expert {dsl_name} programmer. You must translate the User Intent into valid {dsl_name} code.\n\n"
+        f"You must strictly follow this grammar structure:\n"
+        f"{grammar_description}\n\n"
+        f"First, reason deeply about the required components, types, and logic. Enclose your reasoning in <think> and </think> tags.\n"
+        "IMPORTANT: You MUST close your reasoning with </think> BEFORE writing the code block.\n"
+        f"Then, write the corresponding {dsl_name} code block strictly adhering to the provided grammar and syntax.\n\n"
+        f"{aliases_str}\n"
+        f"{examples_str}"
+        f"User Intent: {target_intent}\n"
+    )
+    
+    return sys_prompt
+
 # =====================================================================
 # 3. Main Dual-Phase Architecture
 # =====================================================================
@@ -109,58 +146,82 @@ def run_dual_phase_prototype():
     else:
         model = outlines.models.Transformers(hf_model, tokenizer)
     
-    # ---------------------------------------------------------
-    # The Prompt Setup (Dynamic Injection)
-    # ---------------------------------------------------------
-    target_intent = "Declare two booleans a and c, constrain that either a or c is true, and satisfy."
+    # =========================================================
+    # EXTERNAL DSL INJECTION DATA
+    # =========================================================
+    DSL_NAME = "MiniZinc"
     
-    # Inject our external configurations
-    sys_prompt = build_dual_phase_prompt(
-        target_intent=target_intent,
-        aliases=MINIZINC_ALIASES,
-        examples=minizinc_few_shot_examples
+    GRAMMAR_DESCRIPTION = (
+        "1. <VarDecls> : e.g., 'var int: x;' or 'array[1..3] of var bool: b;'\n"
+        "2. <Constraints> : e.g., 'constraint x > 5;'\n"
+        "3. <Solve> : e.g., 'solve satisfy;' or 'solve maximize x;'\n"
+        "The code MUST follow this exact top-to-bottom order."
     )
+    
+    ALIASES = {
+        "\\/": "Logical OR (either/or)",
+        "/\\": "Logical AND (both)",
+        "->": "Logical Implication (if/then)",
+        "==": "Equality (exactly equal)",
+        "!=": "Inequality (not equal)",
+        "mod": "Modulo (remainder of division)"
+    }
+    
+    EXAMPLES = [
+        {
+            "nl": "Find an integer y exactly equal to 10.",
+            "code": "var int: y;\nconstraint y == 10;\nsolve satisfy;"
+        }
+    ]
+    
+    # target_intent = "Declare two booleans a and c, constrain that either a or c is true, and satisfy."
+    target_intent = "Find integers a and b such that a * b is greater than or equal to 100."
+
+    sys_prompt = build_dsl_agnostic_prompt(
+        dsl_name=DSL_NAME,
+        target_intent=target_intent,
+        grammar_description=GRAMMAR_DESCRIPTION,
+        aliases=ALIASES,
+        examples=EXAMPLES
+    )
+    
+    code_marker = f"```{DSL_NAME.lower()}"
     
     print("\n" + "="*50)
     print(f"TARGET INTENT: {target_intent}")
     print("="*50)
 
     # ---------------------------------------------------------
-    # PHASE 1: CoT Reasoning (Unconstrained)
+    # PHASE 1: CoT Reasoning & Optimistic Draft
     # ---------------------------------------------------------
-    print("\n[Phase 1] Generating Unconstrained Reasoning (DeepSeek-R1 <think> block)...")
+    print(f"\n[Phase 1] Generating Unconstrained Reasoning and {DSL_NAME} Draft...")
     
     phase_1_prompt = sys_prompt + "<think>\n"
-    phase_1_output = model(phase_1_prompt, max_new_tokens=3000)
-    # print("\n--- Raw Phase 1 Output ---")
-    # print(phase_1_output)
-    # print("-------------------------")
+    phase_1_output = model(phase_1_prompt, max_new_tokens=400) 
     
     if isinstance(phase_1_output, list):
         phase_1_output = phase_1_output[0]
         
     new_text = phase_1_output # [len(phase_1_prompt):].strip()
-
+    
     reasoning_text = ""
     draft_code = ""
     
-    # --- PARSE REASONING AND DRAFT CODE ---
+    # --- PARSE REASONING AND DRAFT CODE DYNAMICALLY ---
     if "</think>" in new_text:
         parts = new_text.split("</think>")
         reasoning_text = parts[0].strip()
         post_think_text = parts[1].strip()
         
-        # Try to extract a code block if the model wrote one
-        if "```minizinc" in post_think_text:
-            draft_code = post_think_text.split("```minizinc")[1].split("```")[0].strip()
+        if code_marker in post_think_text:
+            draft_code = post_think_text.split(code_marker)[1].split("```")[0].strip()
         elif "```" in post_think_text:
             draft_code = post_think_text.split("```")[1].strip()
         else:
-            # Maybe it just wrote raw code without markdown
             draft_code = post_think_text.strip()
             
-    elif "```minizinc" in new_text:
-        parts = new_text.split("```minizinc")
+    elif code_marker in new_text:
+        parts = new_text.split(code_marker)
         reasoning_text = parts[0].strip()
         draft_code = parts[1].split("```")[0].strip()
     else:
@@ -168,18 +229,17 @@ def run_dual_phase_prototype():
         
     reasoning_text = reasoning_text.replace("</think>", "").strip()
         
-    print("\n--- DeepSeek-R1 Internal Thoughts ---")
+    print("\n--- Internal Thoughts ---")
     print(reasoning_text)
-    print("-------------------------------------")
+    print("-------------------------")
 
     # ---------------------------------------------------------
     # OPTIMISTIC EVALUATION (The Fast Path)
     # ---------------------------------------------------------
     if draft_code:
         print(f"\n[Optimistic Bypass] Model generated draft code. Evaluating...")
-        
         try:
-            # 1. Syntactic Gate
+            # 1. Syntactic Gate (Using your specific parser logic)
             parse_model(draft_code)
             
             # 2. Semantic Compiler Gate
@@ -187,10 +247,10 @@ def run_dual_phase_prototype():
             
             if is_valid:
                 print("\n✅ FAST PATH SUCCESS! Draft code is perfectly valid.")
-                print("\n--- Final MiniZinc Code (Phase 1 Fast-Path) ---")
+                print(f"\n--- Final {DSL_NAME} Code (Phase 1 Fast-Path) ---")
                 print(draft_code)
                 print("-----------------------------------------------")
-                return # WE ARE DONE! Skip Phase 2.
+                return 
             else:
                 print(f"❌ Compiler rejected draft: {msg}")
                 print("Falling back to Phase 2 Constraints...")
@@ -204,32 +264,33 @@ def run_dual_phase_prototype():
     # ---------------------------------------------------------
     # PHASE 2: Strict CFG Generation (Constrained Fallback)
     # ---------------------------------------------------------
-    print("\n[Phase 2] Generating Constrained Code (CFG Logits Masking)...")
+    print(f"\n[Phase 2] Generating Constrained Code (CFG Logits Masking)...")
     
-    # We discard the broken draft code, but KEEP the successful reasoning!
-    phase_2_prompt = phase_1_prompt + reasoning_text + "\n</think>\n```minizinc\n"
+    # Dynamically format the Phase 2 prompt injection
+    phase_2_prompt = phase_1_prompt + reasoning_text + f"\n</think>\n{code_marker}\n"
     
     constrained_code = model(phase_2_prompt, CFG(MINIZINC_EBNF), max_new_tokens=150)
     
     if isinstance(constrained_code, list):
         constrained_code = constrained_code[0]
         
-    if "```minizinc\n" in constrained_code:
-        final_code = constrained_code.split("```minizinc\n")[-1].strip()
+    if f"{code_marker}\n" in constrained_code:
+        final_code = constrained_code.split(f"{code_marker}\n")[-1].strip()
     else:
         final_code = constrained_code.strip()
         
+    # Generic fallback cleaner
     if not (final_code.startswith("var") or final_code.startswith("array")):
-        final_code = final_code.split("</think>")[-1].replace("```minizinc", "").replace("```", "").strip()
+        final_code = final_code.split("</think>")[-1].replace(code_marker, "").replace("```", "").strip()
 
-    print("\n--- Final Constrained MiniZinc Code ---")
+    print(f"\n--- Final Constrained {DSL_NAME} Code ---")
     print(final_code)
     print("---------------------------------------")
 
     # ---------------------------------------------------------
     # Verification
     # ---------------------------------------------------------
-    print("\n[Verification] Running MiniZinc Compiler Check...")
+    print(f"\n[Verification] Running {DSL_NAME} Compiler Check...")
     is_valid, msg = check_compilation(final_code)
     print(f"Compiler Result: {msg}")
 
