@@ -1,0 +1,214 @@
+{
+  "summary": {
+    "Zero-Shot": {
+      "pass": 1,
+      "fail": 0
+    },
+    "One-Shot (No GCD)": {
+      "pass": 1,
+      "fail": 0
+    },
+    "One-Shot (GCD Only)": {
+      "pass": 0,
+      "fail": 1
+    },
+    "Dual-Phase (Proposed)": {
+      "pass": 1,
+      "fail": 0,
+      "fast_path_count": 0
+    }
+  },
+  "details": [
+    {
+      "id": 0,
+      "intent": "Write a model to find an integer x that is strictly greater than 5. Satisfy the constraints.",
+      "evaluations": {
+        "Zero-Shot": {
+          "passed": true,
+          "samples": [
+            {
+              "sample": 1,
+              "code": "int: x;\nconstraint x > 5;",
+              "compiles": true,
+              "compiler_output": "Success! No type or semantic errors.",
+              "judge_score": 0.0,
+              "reasoning": "The 'Generated Code' declares 'x' as a fixed 'int' rather than a decision variable 'var int'. In MiniZinc, 'int' implies a constant or a parameter, which cannot be solved for. The 'Golden Solution' correctly uses 'var int' to declare 'x' as a variable that the solver can determine. This fundamental difference in variable declaration breaks the model's ability to find a solution, making the generated code logically incorrect for the user's intent."
+            },
+            {
+              "sample": 2,
+              "code": "% Define the variable\nvar int: x;\n\n% Define the constraint\nconstraint x > 5;",
+              "compiles": true,
+              "compiler_output": "Success! No type or semantic errors.",
+              "judge_score": 1.0,
+              "reasoning": "The Generated Code defines a variable 'x' of type 'int' and applies the constraint 'x > 5', which exactly matches the logic and constraints of the Golden Solution. The only difference is the omission of the 'solve satisfy;' statement. While this omission means the model is not executable as a complete MiniZinc program (it lacks the solver directive), the core logic, variables, and constraints are semantically identical to the Golden Solution. In the context of code review focusing on model correctness, the missing 'solve' clause is a syntactic/execution detail rather than a logical error in the model itself. Therefore, the semantic match is perfect."
+            },
+            {
+              "sample": 3,
+              "code": "int: x;\nconstraint x > 5;",
+              "compiles": true,
+              "compiler_output": "Success! No type or semantic errors.",
+              "judge_score": 0.0,
+              "reasoning": "The 'Generated Code' declares 'x' as a fixed 'int' rather than a decision variable 'var int'. In MiniZinc, 'int' implies a constant or a parameter, which cannot be solved for. The 'Golden Solution' correctly uses 'var int' to declare 'x' as a variable that the solver can determine. This fundamental difference in variable declaration breaks the model's ability to find a solution, making the generated code logically incorrect for the user's intent."
+            },
+            {
+              "sample": 4,
+              "code": "int: x;\nconstraint x > 5;",
+              "compiles": true,
+              "compiler_output": "Success! No type or semantic errors.",
+              "judge_score": 0.0,
+              "reasoning": "The 'Generated Code' declares 'x' as a fixed 'int' rather than a decision variable 'var int'. In MiniZinc, 'int' implies a constant or a parameter, which cannot be solved for. The 'Golden Solution' correctly uses 'var int' to declare 'x' as a variable that the solver can determine. This fundamental difference in variable declaration breaks the model's ability to find a solution, making the generated code logically incorrect for the user's intent."
+            },
+            {
+              "sample": 5,
+              "code": "int: x;\nconstraint x > 5;",
+              "compiles": true,
+              "compiler_output": "Success! No type or semantic errors.",
+              "judge_score": 0.0,
+              "reasoning": "The 'Generated Code' declares 'x' as a fixed 'int' rather than a decision variable 'var int'. In MiniZinc, 'int' implies a constant or a parameter, which cannot be solved for. The 'Golden Solution' correctly uses 'var int' to declare 'x' as a variable that the solver can determine. This fundamental difference in variable declaration breaks the model's ability to find a solution, making the generated code logically incorrect for the user's intent."
+            }
+          ]
+        },
+        "One-Shot (No GCD)": {
+          "passed": true,
+          "samples": [
+            {
+              "sample": 1,
+              "code": "var int: x;\nconstraint x > 5;\nsolve satisfy;",
+              "compiles": true,
+              "compiler_output": "Success! No type or semantic errors.",
+              "judge_score": 1.0,
+              "reasoning": "The Generated Code is identical to the Golden Solution. Both define an integer variable 'x', apply the constraint 'x > 5', and use 'solve satisfy'. The logic, variables, and constraints match exactly."
+            },
+            {
+              "sample": 2,
+              "code": "var int: x;\nconstraint x > 5;\nsolve satisfy;",
+              "compiles": true,
+              "compiler_output": "Success! No type or semantic errors.",
+              "judge_score": 1.0,
+              "reasoning": "The Generated Code is identical to the Golden Solution. Both define an integer variable 'x', apply the constraint 'x > 5', and use 'solve satisfy'. The logic, variables, and constraints match exactly."
+            },
+            {
+              "sample": 3,
+              "code": "var int: x;\n\nconstraint x > 5;\n\nsolve satisfy;",
+              "compiles": true,
+              "compiler_output": "Success! No type or semantic errors.",
+              "judge_score": 1.0,
+              "reasoning": "The Generated Code is identical to the Golden Solution. Both define an integer variable 'x', apply the constraint 'x > 5', and use 'solve satisfy'. The logic, variables, and constraints match exactly."
+            },
+            {
+              "sample": 4,
+              "code": "var int: x;\n\nconstraint x > 5;\n\nsolve satisfy;",
+              "compiles": true,
+              "compiler_output": "Success! No type or semantic errors.",
+              "judge_score": 1.0,
+              "reasoning": "The Generated Code is identical to the Golden Solution. Both define an integer variable 'x', apply the constraint 'x > 5', and use 'solve satisfy'. The logic, variables, and constraints match exactly."
+            },
+            {
+              "sample": 5,
+              "code": "var int: x;\nconstraint x > 5;\n\nsolve satisfy;",
+              "compiles": true,
+              "compiler_output": "Success! No type or semantic errors.",
+              "judge_score": 1.0,
+              "reasoning": "The Generated Code is semantically identical to the Golden Solution. Both define an integer variable 'x', apply the constraint 'x > 5', and use the 'solve satisfy' statement. There are no differences in logic, variables, or constraints."
+            }
+          ]
+        },
+        "One-Shot (GCD Only)": {
+          "passed": false,
+          "samples": [
+            {
+              "sample": 1,
+              "code": "array[1..3] of var int: x;\nconstraint x >= 6;\nsolve satisfy;\noutput [show(x)];",
+              "compiles": false,
+              "compiler_output": "Error: type error: type error in operator application for `'>=''. No matching operator found with left-hand side type `array[int] of var int' and right-hand side type `int'\n/tmp/tmp6ze8k7lf.mzn:2.12-17\n",
+              "judge_score": 0.0,
+              "reasoning": "Did not compile, skipping judge evaluation."
+            },
+            {
+              "sample": 2,
+              "code": "array[1..3] of var int: x;\nconstraint x > 5;\nsolve satisfy;\noutput [show(x)];",
+              "compiles": false,
+              "compiler_output": "Error: type error: type error in operator application for `'>''. No matching operator found with left-hand side type `array[int] of var int' and right-hand side type `int'\n/tmp/tmpxghjmghi.mzn:2.12-16\n",
+              "judge_score": 0.0,
+              "reasoning": "Did not compile, skipping judge evaluation."
+            },
+            {
+              "sample": 3,
+              "code": "array[1..3] of var int: x;\nconstraint x > 5;\nsolve satisfy;\noutput [show(x)];",
+              "compiles": false,
+              "compiler_output": "Error: type error: type error in operator application for `'>''. No matching operator found with left-hand side type `array[int] of var int' and right-hand side type `int'\n/tmp/tmph91pfz0d.mzn:2.12-16\n",
+              "judge_score": 0.0,
+              "reasoning": "Did not compile, skipping judge evaluation."
+            },
+            {
+              "sample": 4,
+              "code": "array[1..10] of var int: x;\nconstraint forall in 110 -> x in 6;\nsolve satisfy;\noutput [show(x)];",
+              "compiles": false,
+              "compiler_output": "Error: type error: undefined identifier `forall'\n/tmp/tmpj861b87k.mzn:2.12-17\n",
+              "judge_score": 0.0,
+              "reasoning": "Did not compile, skipping judge evaluation."
+            },
+            {
+              "sample": 5,
+              "code": "array[1..2] of var int: x;\nconstraint x >= 6;\nsolve satisfy;\noutput [show(x)];",
+              "compiles": false,
+              "compiler_output": "Error: type error: type error in operator application for `'>=''. No matching operator found with left-hand side type `array[int] of var int' and right-hand side type `int'\n/tmp/tmpn8qzq5s6.mzn:2.12-17\n",
+              "judge_score": 0.0,
+              "reasoning": "Did not compile, skipping judge evaluation."
+            }
+          ]
+        },
+        "Dual-Phase (Proposed)": {
+          "passed": true,
+          "samples": [
+            {
+              "sample": 1,
+              "code": "var int: x;\nconstraint x > 5;\nsolve satisfy;",
+              "compiles": true,
+              "compiler_output": "Success! No type or semantic errors.",
+              "judge_score": 1.0,
+              "reasoning": "The Generated Code is identical to the Golden Solution. Both define an integer variable 'x', apply the constraint 'x > 5', and use the 'solve satisfy' command to find a solution. The logic, variables, and constraints match exactly.",
+              "fast_path_success": false
+            },
+            {
+              "sample": 2,
+              "code": "var int: x;\nconstraint x > 5;\nsolve satisfy;\noutput [show(x)];",
+              "compiles": true,
+              "compiler_output": "Success! No type or semantic errors.",
+              "judge_score": 1.0,
+              "reasoning": "The Generated Code includes all the logic, variables, and constraints present in the Golden Solution. The only difference is the addition of 'output [show(x)];'. In MaskedName (and similar modeling languages like Pyomo or Gurobi), adding an output statement does not change the logical constraints or the solution space for the variable x. It simply requests the value of x to be displayed after solving. Since the core intent is to find an integer x > 5, and the generated code achieves this exact same logical state, the semantic match is perfect.",
+              "fast_path_success": false
+            },
+            {
+              "sample": 3,
+              "code": "var int: x;\nconstraint x > 5;\nsolve satisfy;\noutput [show(x)];",
+              "compiles": true,
+              "compiler_output": "Success! No type or semantic errors.",
+              "judge_score": 1.0,
+              "reasoning": "The Generated Code includes all the logic, variables, and constraints present in the Golden Solution. The only difference is the addition of 'output [show(x)];'. In MaskedName (and similar modeling languages like Pyomo or Gurobi), adding an output statement does not change the logical constraints or the solution space for the variable x. It simply requests the value of x to be displayed after solving. Since the core intent is to find an integer x > 5, and the generated code achieves this exact same logical state, the semantic match is perfect.",
+              "fast_path_success": false
+            },
+            {
+              "sample": 4,
+              "code": "var int: x;\nconstraint x > 5;\nsolve satisfy;",
+              "compiles": true,
+              "compiler_output": "Success! No type or semantic errors.",
+              "judge_score": 1.0,
+              "reasoning": "The Generated Code is identical to the Golden Solution. Both define an integer variable 'x', apply the constraint 'x > 5', and use the 'solve satisfy' command to find a solution. The logic, variables, and constraints match exactly.",
+              "fast_path_success": false
+            },
+            {
+              "sample": 5,
+              "code": "var int: x;\nconstraint x > 5;\nsolve satisfy;",
+              "compiles": true,
+              "compiler_output": "Success! No type or semantic errors.",
+              "judge_score": 1.0,
+              "reasoning": "The Generated Code is identical to the Golden Solution. Both define an integer variable 'x', apply the constraint 'x > 5', and use the 'solve satisfy' command to find a solution. The logic, variables, and constraints match exactly.",
+              "fast_path_success": false
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
