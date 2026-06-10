@@ -17,7 +17,7 @@ except ImportError:
 # =====================================================================
 # Configuration
 # =====================================================================
-BENCHMARK_FILE = "benchmark_test.json"
+BENCHMARK_FILE = "minizinc_benchmark.json"
 RESULTS_FILE = "evaluation_pass_5_results.json"
 K_SAMPLES = 5
 TEMPERATURE = 0.6  # Required for diverse k-sampling
