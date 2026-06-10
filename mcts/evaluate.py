@@ -11,8 +11,8 @@ load_dotenv()
 
 # Import your components from their respective files
 # (Adjust the import names based on what you named your Python files)
-from mcts_generator import MiniZincEnvironment, OllamaLLMHeuristic, NeurosymbolicMCTS
-from baselines import (
+from mcts.mcts_generator import MiniZincEnvironment, OllamaLLMHeuristic, NeurosymbolicMCTS
+from mcts.baselines import (
     baseline_1_zero_shot, 
     baseline_2_one_shot_grammar, 
     baseline_3_grammar_constrained, 
