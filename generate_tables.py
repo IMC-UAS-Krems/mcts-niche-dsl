@@ -1,5 +1,6 @@
 import json
 import os
+import statistics
 
 # =====================================================================
 # Configuration
@@ -30,6 +31,9 @@ def generate_latex_table():
 
     # Track how many times each method passes at k=1, k=3, and k=5
     pass_counts = {m: {1: 0, 3: 0, 5: 0} for m in METHODS}
+    
+    # Track generation times to calculate mean and std dev
+    generation_times = {m: [] for m in METHODS}
 
     for item in details:
         evaluations = item.get("evaluations", {})
@@ -39,6 +43,12 @@ def generate_latex_table():
                 continue
                 
             samples = evaluations[method].get("samples", [])
+            
+            # Extract generation times for all samples of this method
+            for s in samples:
+                t = s.get("generation_time")
+                if t is not None:
+                    generation_times[method].append(t)
             
             # Helper to check if a pass exists in the first K samples
             def passed_in_first_k(k: int) -> bool:
@@ -55,11 +65,25 @@ def generate_latex_table():
 
     # Convert counts to percentages
     pass_rates = {}
+    time_stats = {}
+    
     for m in METHODS:
+        # Pass rates
         pass_rates[m] = {
             k: (pass_counts[m][k] / total_prompts) * 100
             for k in [1, 3, 5]
         }
+        
+        # Time stats (Mean and Standard Deviation)
+        times = generation_times[m]
+        if times:
+            mean_time = statistics.mean(times)
+            std_time = statistics.stdev(times) if len(times) > 1 else 0.0
+        else:
+            mean_time = 0.0
+            std_time = 0.0
+            
+        time_stats[m] = {"mean": mean_time, "std": std_time}
         
     dual_rates = pass_rates["Dual-Phase (Proposed)"]
 
@@ -75,15 +99,16 @@ def generate_latex_table():
         else:
             return f"{improvement:.1f}\\%"
 
-    # =====================================================================
-    # LaTeX Table Generation
-    # =====================================================================
     latex = []
+
+    # =====================================================================
+    # TABLE 1: Accuracy (pass@k)
+    # =====================================================================
+    latex.append("% --- TABLE 1: Accuracy ---")
     latex.append("\\begin{table}[htbp]")
     latex.append("  \\centering")
-    latex.append("  \\caption{Evaluation of code generation strategies on the MiniZinc benchmark. Results denote the $pass@k$ accuracy (\\%), defined as syntactic, semantic, and compiler-verified success. The $\\Delta$ columns represent the relative improvement of the proposed Dual-Phase architecture over the respective baseline at each $k$.}")
+    latex.append("  \\caption{Evaluation of code generation strategies on the MiniZinc benchmark. Results denote the $pass@k$ accuracy (\\%), defined as syntactic, semantic, and compiler-verified success. The $\\Delta$ columns represent the relative improvement of the proposed Dual-Phase architecture over the respective baseline.}")
     latex.append("  \\label{tab:pass_at_k}")
-    # Update to 7 columns (Method + 3x pass@k + 3x deltas)
     latex.append("  \\begin{tabular}{l r r r r r r}")
     latex.append("    \\toprule")
     latex.append("    \\textbf{Method} & \\textbf{pass@1} & \\textbf{$\\Delta$} & \\textbf{pass@3} & \\textbf{$\\Delta$} & \\textbf{pass@5} & \\textbf{$\\Delta$} \\\\")
@@ -100,27 +125,48 @@ def generate_latex_table():
         d5 = get_delta_str(m, p5, dual_rates[5])
         
         # Format the method name
-        if m == "Dual-Phase (Proposed)":
-            row_title = f"\\textbf{{{m}}}"
-        else:
-            row_title = m
-                
-        # latex.append(f"    {row_title} & {p1:.1f}\\% & {d1} & {p3:.1f}\\% & {d3} & {p5:.1f}\\% & {d5} \\\\")
+        row_title = f"\\textbf{{{m}}}" if m == "Dual-Phase (Proposed)" else m
         latex.append(f"    {row_title} & {p1:.1f} & {d1} & {p3:.1f} & {d3} & {p5:.1f} & {d5} \\\\")
+        
+    latex.append("    \\bottomrule")
+    latex.append("  \\end{tabular}")
+    latex.append("\\end{table}")
+    
+    latex.append("\n\\vspace{1em}\n")
+
+    # =====================================================================
+    # TABLE 2: Generation Time
+    # =====================================================================
+    latex.append("% --- TABLE 2: Computational Overhead ---")
+    latex.append("\\begin{table}[htbp]")
+    latex.append("  \\centering")
+    latex.append("  \\caption{Computational overhead of the evaluated methodologies. The mean generation time and standard deviation (Std) per sample are reported in seconds.}")
+    latex.append("  \\label{tab:generation_time}")
+    latex.append("  \\begin{tabular}{l r r}")
+    latex.append("    \\toprule")
+    latex.append("    \\textbf{Method} & \\textbf{Mean Time (s)} & \\textbf{Time Std (s)} \\\\")
+    latex.append("    \\midrule")
+    
+    for m in METHODS:
+        mean_t = time_stats[m]["mean"]
+        std_t = time_stats[m]["std"]
+        row_title = f"\\textbf{{{m}}}" if m == "Dual-Phase (Proposed)" else m
+        
+        latex.append(f"    {row_title} & {mean_t:.2f} & {std_t:.2f} \\\\")
         
     latex.append("    \\bottomrule")
     latex.append("  \\end{tabular}")
     latex.append("\\end{table}")
 
     # Output to console
-    print("\n--- Generated LaTeX Table ---\n")
+    print("\n--- Generated LaTeX Tables ---\n")
     print("\n".join(latex))
-    print("\n-----------------------------\n")
+    print("\n------------------------------\n")
     
     # Optionally save to file
-    with open("table_pass_k.tex", "w") as f:
+    with open("tables_results.tex", "w") as f:
         f.write("\n".join(latex))
-    print("Table successfully saved to 'table_pass_k.tex'.")
+    print("Tables successfully saved to 'tables_results.tex'.")
 
 if __name__ == "__main__":
     generate_latex_table()
