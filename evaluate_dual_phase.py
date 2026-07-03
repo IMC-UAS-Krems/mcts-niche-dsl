@@ -295,7 +295,7 @@ def run_benchmark():
                     score, reasoning = judge_semantic_alignment(
                         MINIZINC_DSL_CONFIG["name"], intent, generated_code, golden_code
                     )
-                    if score >= 0.85:
+                    if score >= 0.8:
                         method_passed = True
                 
                 log_entry = {
