@@ -1,5 +1,6 @@
 import os
 import json
+from time import time
 import torch
 import subprocess
 import tempfile
@@ -17,7 +18,7 @@ except ImportError:
 # =====================================================================
 # Configuration
 # =====================================================================
-BENCHMARK_FILE = "minizinc_benchmark.json"
+BENCHMARK_FILE = "benchmark_test.json"
 RESULTS_FILE = "evaluation_pass_5_results.json"
 K_SAMPLES = 5
 TEMPERATURE = 0.6  # Required for diverse k-sampling
@@ -276,12 +277,15 @@ def run_benchmark():
             
             for k in range(K_SAMPLES):
                 # 1. Generate code and metadata
+                # Measure wall-clock time for each method
+                start_time = time()
                 try:
                     generated_code, metadata = gen_func(
                         model, intent, MINIZINC_DSL_CONFIG, minizinc_compiler
                     )
                 except Exception as e:
                     generated_code, metadata = "", {"error": str(e)}
+                end_time = time()
 
                 # 2. Evaluate Compile & Semantic Alignment
                 compiles, compiler_output = minizinc_compiler(generated_code)
@@ -297,6 +301,7 @@ def run_benchmark():
                 log_entry = {
                     "sample": k + 1,
                     "code": generated_code,
+                    "generation_time": end_time - start_time,   # in seconds
                     "compiles": compiles,
                     "compiler_output": compiler_output,
                     "judge_score": score,
