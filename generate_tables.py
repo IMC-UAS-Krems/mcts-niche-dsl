@@ -32,8 +32,9 @@ def generate_latex_table():
     # Track how many times each method passes at k=1, k=3, and k=5
     pass_counts = {m: {1: 0, 3: 0, 5: 0} for m in METHODS}
     
-    # Track generation times to calculate mean and std dev
+    # Track generation times and token counts to calculate mean and std dev
     generation_times = {m: [] for m in METHODS}
+    tokens_spent = {m: [] for m in METHODS}
 
     for item in details:
         evaluations = item.get("evaluations", {})
@@ -44,11 +45,15 @@ def generate_latex_table():
                 
             samples = evaluations[method].get("samples", [])
             
-            # Extract generation times for all samples of this method
+            # Extract metrics for all generated samples of this method
             for s in samples:
                 t = s.get("generation_time")
                 if t is not None:
                     generation_times[method].append(t)
+                    
+                tok = s.get("tokens_spent")
+                if tok is not None:
+                    tokens_spent[method].append(tok)
             
             # Helper to check if a pass exists in the first K samples
             def passed_in_first_k(k: int) -> bool:
@@ -65,7 +70,7 @@ def generate_latex_table():
 
     # Convert counts to percentages
     pass_rates = {}
-    time_stats = {}
+    overhead_stats = {}
     
     for m in METHODS:
         # Pass rates
@@ -74,7 +79,7 @@ def generate_latex_table():
             for k in [1, 3, 5]
         }
         
-        # Time stats (Mean and Standard Deviation)
+        # Time stats
         times = generation_times[m]
         if times:
             mean_time = statistics.mean(times)
@@ -83,7 +88,21 @@ def generate_latex_table():
             mean_time = 0.0
             std_time = 0.0
             
-        time_stats[m] = {"mean": mean_time, "std": std_time}
+        # Token stats
+        toks = tokens_spent[m]
+        if toks:
+            mean_toks = statistics.mean(toks)
+            std_toks = statistics.stdev(toks) if len(toks) > 1 else 0.0
+        else:
+            mean_toks = 0.0
+            std_toks = 0.0
+            
+        overhead_stats[m] = {
+            "time_mean": mean_time, 
+            "time_std": std_time,
+            "tok_mean": mean_toks,
+            "tok_std": std_toks
+        }
         
     dual_rates = pass_rates["Dual-Phase (Proposed)"]
 
@@ -135,24 +154,27 @@ def generate_latex_table():
     latex.append("\n\\vspace{1em}\n")
 
     # =====================================================================
-    # TABLE 2: Generation Time
+    # TABLE 2: Computational Overhead (Time & Tokens)
     # =====================================================================
     latex.append("% --- TABLE 2: Computational Overhead ---")
     latex.append("\\begin{table}[htbp]")
     latex.append("  \\centering")
-    latex.append("  \\caption{Computational overhead of the evaluated methodologies. The mean generation time and standard deviation (Std) per sample are reported in seconds.}")
-    latex.append("  \\label{tab:generation_time}")
-    latex.append("  \\begin{tabular}{l r r}")
+    latex.append("  \\caption{Computational overhead of the evaluated methodologies. The table reports the mean generation time in seconds and the mean total tokens generated per sample, alongside their respective standard deviations (Std).}")
+    latex.append("  \\label{tab:computational_overhead}")
+    latex.append("  \\begin{tabular}{l r r r r}")
     latex.append("    \\toprule")
-    latex.append("    \\textbf{Method} & \\textbf{Mean Time (s)} & \\textbf{Time Std (s)} \\\\")
+    latex.append("    \\textbf{Method} & \\textbf{Mean Time (s)} & \\textbf{Time Std (s)} & \\textbf{Mean Tokens} & \\textbf{Tokens Std} \\\\")
     latex.append("    \\midrule")
     
     for m in METHODS:
-        mean_t = time_stats[m]["mean"]
-        std_t = time_stats[m]["std"]
+        mean_t = overhead_stats[m]["time_mean"]
+        std_t = overhead_stats[m]["time_std"]
+        mean_tok = overhead_stats[m]["tok_mean"]
+        std_tok = overhead_stats[m]["tok_std"]
+        
         row_title = f"\\textbf{{{m}}}" if m == "Dual-Phase (Proposed)" else m
         
-        latex.append(f"    {row_title} & {mean_t:.2f} & {std_t:.2f} \\\\")
+        latex.append(f"    {row_title} & {mean_t:.2f} & {std_t:.2f} & {mean_tok:.1f} & {std_tok:.1f} \\\\")
         
     latex.append("    \\bottomrule")
     latex.append("  \\end{tabular}")

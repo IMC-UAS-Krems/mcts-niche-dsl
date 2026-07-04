@@ -20,16 +20,16 @@
 % --- TABLE 2: Computational Overhead ---
 \begin{table}[htbp]
   \centering
-  \caption{Computational overhead of the evaluated methodologies. The mean generation time and standard deviation (Std) per sample are reported in seconds.}
-  \label{tab:generation_time}
-  \begin{tabular}{l r r}
+  \caption{Computational overhead of the evaluated methodologies. The table reports the mean generation time in seconds and the mean total tokens generated per sample, alongside their respective standard deviations (Std).}
+  \label{tab:computational_overhead}
+  \begin{tabular}{l r r r r}
     \toprule
-    \textbf{Method} & \textbf{Mean Time (s)} & \textbf{Time Std (s)} \\
+    \textbf{Method} & \textbf{Mean Time (s)} & \textbf{Time Std (s)} & \textbf{Mean Tokens} & \textbf{Tokens Std} \\
     \midrule
-    Zero-Shot & 0.88 & 0.48 \\
-    One-Shot (No GCD) & 4.94 & 3.09 \\
-    One-Shot (GCD Only) & 2.74 & 0.51 \\
-    \textbf{Dual-Phase (Proposed)} & 5.95 & 4.13 \\
+    Zero-Shot & 0.88 & 0.48 & 32.6 & 17.3 \\
+    One-Shot (No GCD) & 4.94 & 3.09 & 193.6 & 121.7 \\
+    One-Shot (GCD Only) & 2.74 & 0.51 & 36.1 & 16.9 \\
+    \textbf{Dual-Phase (Proposed)} & 5.95 & 4.13 & 165.2 & 160.6 \\
     \bottomrule
   \end{tabular}
 \end{table}
