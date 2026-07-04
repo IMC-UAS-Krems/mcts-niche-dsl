@@ -18,7 +18,7 @@ except ImportError:
 # =====================================================================
 # Configuration
 # =====================================================================
-BENCHMARK_FILE = "minizinc_benchmark.json"
+BENCHMARK_FILE = "benchmark_test.json"
 RESULTS_FILE = "evaluation_pass_5_results.json"
 K_SAMPLES = 5
 TEMPERATURE = 0.6  # Required for diverse k-sampling
@@ -90,25 +90,31 @@ def build_one_shot_prompt(intent: str, dsl_config: dict, include_think: bool) ->
 # =====================================================================
 # Generation Methods (Updated for Outlines v0.1.0+)
 # =====================================================================
-def generate_zero_shot(model, intent: str, dsl_config: dict, compiler_fn: Callable) -> Tuple[str, dict]:
+def generate_zero_shot(model, tokenizer, intent: str, dsl_config: dict, compiler_fn: Callable) -> Tuple[str, dict]:
     prompt = build_zero_shot_prompt(intent, dsl_config)
     
     # Pass generation parameters directly
     output = model(prompt, max_new_tokens=150, temperature=TEMPERATURE, do_sample=True)
     if isinstance(output, list): output = output[0]
-    
-    code = output.replace(f"```{dsl_config['name'].lower()}", "").replace("```", "").strip()
-    # print(f"Generated Code (Zero-Shot):\n{code}\n---")
-    return code, {}
 
-def generate_one_shot_no_gcd(model, intent: str, dsl_config: dict, compiler_fn: Callable) -> Tuple[str, dict]:
+    new_text = output[len(prompt):] if output.startswith(prompt) else output
+    tokens_spent = len(tokenizer.encode(new_text))
+    
+    code = new_text.replace(f"```{dsl_config['name'].lower()}", "").replace("```", "").strip()
+    # print(f"Generated Code (Zero-Shot):\n{code}\n---")
+    return code, {"tokens_spent": tokens_spent}
+
+def generate_one_shot_no_gcd(model, tokenizer, intent: str, dsl_config: dict, compiler_fn: Callable) -> Tuple[str, dict]:
     prompt = build_one_shot_prompt(intent, dsl_config, include_think=True) + "<think>\n"
     
     output = model(prompt, max_new_tokens=3000, temperature=TEMPERATURE, do_sample=True)
     if isinstance(output, list): output = output[0]
     
+    new_text = output[len(prompt):] if output.startswith(prompt) else output
+    tokens_spent = len(tokenizer.encode(new_text))
+
     code_marker = f"```{dsl_config['name'].lower()}"
-    new_text = output #[len(prompt):]
+    # new_text = output #[len(prompt):]
     
     if code_marker in new_text:
         code = new_text.split(code_marker)[1].split("```")[0].strip()
@@ -116,23 +122,26 @@ def generate_one_shot_no_gcd(model, intent: str, dsl_config: dict, compiler_fn: 
         code = new_text.split("</think>")[-1].strip()
         
     # print(f"Generated Code (One-Shot No GCD):\n{code}\n---")
-    return code, {}
+    return code, {"tokens_spent": tokens_spent}
 
-def generate_one_shot_only_gcd(model, intent: str, dsl_config: dict, compiler_fn: Callable) -> Tuple[str, dict]:
+def generate_one_shot_only_gcd(model, tokenizer, intent: str, dsl_config: dict, compiler_fn: Callable) -> Tuple[str, dict]:
     code_marker = f"```{dsl_config['name'].lower()}\n"
     prompt = build_one_shot_prompt(intent, dsl_config, include_think=False) + code_marker
     
     output = model(prompt, CFG(dsl_config["ebnf"]), max_new_tokens=150, temperature=TEMPERATURE, do_sample=True)
     if isinstance(output, list): output = output[0]
     
+    new_text = output[len(prompt):] if output.startswith(prompt) else output
+    tokens_spent = len(tokenizer.encode(new_text))
+
     if code_marker in output:
         code = output.split(code_marker)[-1].strip()
     else:
         code = output.strip()
         
-    return code, {}
+    return code, {"tokens_spent": tokens_spent}
 
-def generate_dual_phase(model, intent: str, dsl_config: dict, compiler_fn: Callable) -> Tuple[str, dict]:
+def generate_dual_phase(model, tokenizer, intent: str, dsl_config: dict, compiler_fn: Callable) -> Tuple[str, dict]:
     """The Proposed Architecture: CoT + Optimistic Bypass + GCD Fallback"""
     prompt = build_one_shot_prompt(intent, dsl_config, include_think=True) + "<think>\n"
     code_marker = f"```{dsl_config['name'].lower()}"
@@ -141,7 +150,8 @@ def generate_dual_phase(model, intent: str, dsl_config: dict, compiler_fn: Calla
     phase_1_out = model(prompt, max_new_tokens=400, temperature=TEMPERATURE, do_sample=True)
     if isinstance(phase_1_out, list): phase_1_out = phase_1_out[0]
     
-    new_text = phase_1_out[len(prompt):]
+    new_text = phase_1_out[len(prompt):] if phase_1_out.startswith(prompt) else phase_1_out
+    total_tokens_spent = len(tokenizer.encode(new_text))
     reasoning_text = new_text.split("</think>")[0].strip() if "</think>" in new_text else new_text.strip()
     
     # Try Optimistic Extraction
@@ -151,20 +161,23 @@ def generate_dual_phase(model, intent: str, dsl_config: dict, compiler_fn: Calla
         
     # Check Fast Path
     if draft_code and compiler_fn(draft_code):
-        return draft_code, {"fast_path_success": True}
+        return draft_code, {"fast_path_success": True, "tokens_spent": total_tokens_spent}
         
     # Phase 2: GCD Fallback
     phase_2_prompt = prompt + reasoning_text + f"\n</think>\n{code_marker}\n"
     
     constrained_out = model(phase_2_prompt, CFG(dsl_config["ebnf"]), max_new_tokens=150, temperature=TEMPERATURE, do_sample=True)
     if isinstance(constrained_out, list): constrained_out = constrained_out[0]
+
+    phase_2_new_text = constrained_out[len(phase_2_prompt):] if constrained_out.startswith(phase_2_prompt) else constrained_out
+    total_tokens_spent += len(tokenizer.encode(phase_2_new_text))
     
     if f"{code_marker}\n" in constrained_out:
         final_code = constrained_out.split(f"{code_marker}\n")[-1].strip()
     else:
         final_code = constrained_out.strip()
         
-    return final_code, {"fast_path_success": False}
+    return final_code, {"fast_path_success": False, "tokens_spent": total_tokens_spent}
 
 # =====================================================================
 # Main Evaluation Loop
@@ -281,7 +294,7 @@ def run_benchmark():
                 start_time = time()
                 try:
                     generated_code, metadata = gen_func(
-                        model, intent, MINIZINC_DSL_CONFIG, minizinc_compiler
+                        model, tokenizer, intent, MINIZINC_DSL_CONFIG, minizinc_compiler
                     )
                 except Exception as e:
                     generated_code, metadata = "", {"error": str(e)}
