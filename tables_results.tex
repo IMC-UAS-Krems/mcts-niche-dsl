@@ -33,3 +33,20 @@
     \bottomrule
   \end{tabular}
 \end{table}
+
+\vspace{1em}
+
+% --- TABLE 3: Dual-Phase Routing Analytics ---
+\begin{table}[htbp]
+  \centering
+  \caption{Internal routing analytics for the Dual-Phase Cascaded Architecture. The table details the probability that a sample required the Phase 2 GCD fallback (i.e., the optimistic draft failed compilation), and the conditional probability that Phase 2 successfully repaired the sequence to yield a passing model.}
+  \label{tab:dual_phase_analytics}
+  \begin{tabular}{r r}
+    \toprule
+    \textbf{Routing Metric} & \textbf{Rate (\%)} \\
+    \midrule
+    Phase 2 Trigger Rate ($P(\text{Phase 2} | \text{Phase 1 Fails})$) & 98.6\% \\
+    Conditional Success Rate ($P(\text{Pass} | \text{Phase 2 Triggered})$) & 45.8\% \\
+    \bottomrule
+  \end{tabular}
+\end{table}
