@@ -11,6 +11,7 @@ METHODS = [
     "Zero-Shot",
     "One-Shot (No GCD)",
     "One-Shot (GCD Only)",
+    "One-Shot (CoT + Always GCD)",
     "Dual-Phase (Proposed)"
 ]
 

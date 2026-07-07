@@ -18,7 +18,7 @@ except ImportError:
 # =====================================================================
 # Configuration
 # =====================================================================
-BENCHMARK_FILE = "benchmark_test.json"
+BENCHMARK_FILE = "minizinc_benchmark.json"
 RESULTS_FILE = "evaluation_pass_5_results.json"
 K_SAMPLES = 5
 TEMPERATURE = 0.6  # Required for diverse k-sampling
@@ -87,6 +87,40 @@ def build_one_shot_prompt(intent: str, dsl_config: dict, include_think: bool) ->
     prompt += f"```{dsl_name.lower()}\n{dsl_config['example_code']}\n```\n\nUser Intent: {intent}\n"
     return prompt
 
+def extract_code(text: str, dsl_name: str) -> str:
+    """
+    Centralized code extractor. Robustly strips reasoning (<think>) blocks 
+    and handles all variations of markdown tags (```minizinc, ```plaintext, ```text, ```mzn, or raw code).
+    """
+    # 1. Isolate text after <think> tag if present
+    if "</think>" in text:
+        text = text.split("</think>")[-1].strip()
+    else:
+        text = text.strip()
+        
+    code_marker = f"```{dsl_name.lower()}"
+    
+    # 2. Extract code block based on common markdown patterns
+    if code_marker in text:
+        code_block = text.split(code_marker)[1].split("```")[0].strip()
+    elif "```plaintext" in text:
+        code_block = text.split("```plaintext")[1].split("```")[0].strip()
+    elif "```text" in text:
+        code_block = text.split("```text")[1].split("```")[0].strip()
+    elif "```" in text:
+        code_block = text.split("```")[1].strip()
+        # If the LLM used a generic block with a language tag (e.g., ```mzn)
+        if "\n" in code_block:
+            first_line = code_block.split("\n")[0].strip()
+            # If the first line is a single word and not a DSL keyword, strip it
+            if first_line.isalnum() and first_line not in ["var", "array", "constraint", "solve", "include"]:
+                code_block = code_block[len(first_line):].strip()
+    else:
+        # Fallback: No markdown backticks present, assume raw code
+        code_block = text.strip()
+        
+    return code_block
+
 # =====================================================================
 # Generation Methods (Updated for Outlines v0.1.0+)
 # =====================================================================
@@ -100,7 +134,7 @@ def generate_zero_shot(model, tokenizer, intent: str, dsl_config: dict, compiler
     new_text = output[len(prompt):] if output.startswith(prompt) else output
     tokens_spent = len(tokenizer.encode(new_text))
     
-    code = new_text.replace(f"```{dsl_config['name'].lower()}", "").replace("```", "").strip()
+    code = extract_code(new_text, dsl_config["name"])
     # print(f"Generated Code (Zero-Shot):\n{code}\n---")
     return code, {"tokens_spent": tokens_spent}
 
@@ -113,20 +147,13 @@ def generate_one_shot_no_gcd(model, tokenizer, intent: str, dsl_config: dict, co
     new_text = output[len(prompt):] if output.startswith(prompt) else output
     tokens_spent = len(tokenizer.encode(new_text))
 
-    code_marker = f"```{dsl_config['name'].lower()}"
-    # new_text = output #[len(prompt):]
-    
-    if code_marker in new_text:
-        code = new_text.split(code_marker)[1].split("```")[0].strip()
-    else:
-        code = new_text.split("</think>")[-1].strip()
+    code = extract_code(new_text, dsl_config["name"])
         
     # print(f"Generated Code (One-Shot No GCD):\n{code}\n---")
     return code, {"tokens_spent": tokens_spent}
 
 def generate_one_shot_only_gcd(model, tokenizer, intent: str, dsl_config: dict, compiler_fn: Callable) -> Tuple[str, dict]:
-    code_marker = f"```{dsl_config['name'].lower()}\n"
-    prompt = build_one_shot_prompt(intent, dsl_config, include_think=False) + code_marker
+    prompt = build_one_shot_prompt(intent, dsl_config, include_think=False) 
     
     output = model(prompt, CFG(dsl_config["ebnf"]), max_new_tokens=150, temperature=TEMPERATURE, do_sample=True)
     if isinstance(output, list): output = output[0]
@@ -134,60 +161,38 @@ def generate_one_shot_only_gcd(model, tokenizer, intent: str, dsl_config: dict, 
     new_text = output[len(prompt):] if output.startswith(prompt) else output
     tokens_spent = len(tokenizer.encode(new_text))
 
-    if code_marker in output:
-        code = output.split(code_marker)[-1].strip()
-    else:
-        code = output.strip()
-        
+    code = extract_code(new_text, dsl_config["name"])
     return code, {"tokens_spent": tokens_spent}
 
-def generate_dual_phase(model, tokenizer, intent: str, dsl_config: dict, compiler_fn: Callable) -> Tuple[str, dict]:
-    """The Proposed Architecture: CoT + Optimistic Bypass + GCD Fallback"""
+def generate_one_shot_cot_always_gcd(model, tokenizer, intent: str, dsl_config: dict, compiler_fn: Callable) -> Tuple[str, dict]:
+    """Ablation Baseline: CoT reasoning followed immediately by strict GCD, no optimistic draft."""
     prompt = build_one_shot_prompt(intent, dsl_config, include_think=True) + "<think>\n"
     code_marker = f"```{dsl_config['name'].lower()}"
     
-    # Phase 1: Unconstrained Reasoning & Draft
-    phase_1_out = model(prompt, max_new_tokens=400, temperature=TEMPERATURE, do_sample=True)
+    # Phase 1: Unconstrained Reasoning
+    phase_1_out = model(prompt, max_new_tokens=3000, temperature=TEMPERATURE, do_sample=True)
     if isinstance(phase_1_out, list): phase_1_out = phase_1_out[0]
     
     new_text = phase_1_out[len(prompt):] if phase_1_out.startswith(prompt) else phase_1_out
     total_tokens_spent = len(tokenizer.encode(new_text))
+    
+    # Extract just the reasoning part (discarding any code the model might have drafted)
     reasoning_text = new_text.split("</think>")[0].strip() if "</think>" in new_text else new_text.strip()
     
-    # Try Optimistic Extraction
-    draft_code = ""
-    if code_marker in new_text:
-        draft_code = new_text.split(code_marker)[1].split("```")[0].strip()
-        
-    # Check Fast Path
-    if draft_code and compiler_fn(draft_code):
-        return draft_code, {"fast_path_success": True, "tokens_spent": total_tokens_spent}
-        
-    # Phase 2: GCD Fallback
+    # Phase 2: ALWAYS apply GCD Fallback
     phase_2_prompt = prompt + reasoning_text + f"\n</think>\n{code_marker}\n"
     
     constrained_out = model(phase_2_prompt, CFG(dsl_config["ebnf"]), max_new_tokens=150, temperature=TEMPERATURE, do_sample=True)
     if isinstance(constrained_out, list): constrained_out = constrained_out[0]
-
+    
     phase_2_new_text = constrained_out[len(phase_2_prompt):] if constrained_out.startswith(phase_2_prompt) else constrained_out
-    total_tokens_spent += len(tokenizer.encode(phase_2_new_text))
+    total_tokens_spent += len(tokenizer.encode(phase_2_new_text)) 
     
-    if f"{code_marker}\n" in constrained_out:
-        final_code = constrained_out.split(f"{code_marker}\n")[-1].strip()
-    else:
-        final_code = constrained_out.strip()
+    final_code = extract_code(phase_2_new_text, dsl_config["name"])
         
-    return final_code, {"fast_path_success": False, "tokens_spent": total_tokens_spent}
+    return final_code, {"tokens_spent": total_tokens_spent}
 
-# =====================================================================
-# Main Evaluation Loop
-# =====================================================================
-def run_benchmark():
-    
-    # -----------------------------------------------------------------
-    # INJECT DSL SPECIFICS HERE (MiniZinc Example)
-    # -----------------------------------------------------------------
-    def minizinc_compiler(code: str) -> tuple[bool, str]:
+def minizinc_compiler(code: str) -> tuple[bool, str]:
         """Compiler implementation for MiniZinc."""
         fd, temp_path = tempfile.mkstemp(suffix=".mzn")
         try:
@@ -202,6 +207,56 @@ def run_benchmark():
         finally:
             if os.path.exists(temp_path):
                 os.remove(temp_path)
+
+def generate_dual_phase(model, tokenizer, intent: str, dsl_config: dict, compiler_fn: Callable) -> Tuple[str, dict]:
+    """The Proposed Architecture: CoT + Optimistic Bypass + GCD Fallback"""
+    prompt = build_one_shot_prompt(intent, dsl_config, include_think=True) + "<think>\n"
+    code_marker = f"```{dsl_config['name'].lower()}"
+    
+    # Phase 1: Unconstrained Reasoning & Draft
+    phase_1_out = model(prompt, max_new_tokens=3000, temperature=TEMPERATURE, do_sample=True)
+    if isinstance(phase_1_out, list): phase_1_out = phase_1_out[0]
+    
+    new_text = phase_1_out[len(prompt):] if phase_1_out.startswith(prompt) else phase_1_out
+    total_tokens_spent = len(tokenizer.encode(new_text))
+    reasoning_text = new_text.split("</think>")[0].strip() if "</think>" in new_text else new_text.strip()
+    
+    # Try Optimistic Extraction
+    draft_code = extract_code(new_text, dsl_config["name"])
+
+    # Check Fast Path
+    reason_fast_path_not_successful = ""
+    if draft_code:
+        success, msg = minizinc_compiler(draft_code)
+        if success:
+            return draft_code, {"fast_path_success": True, "compiler_output_fast_path": msg, "tokens_spent": total_tokens_spent}
+        else:
+            reason_fast_path_not_successful = msg
+        
+    # Phase 2: GCD Fallback
+    phase_2_prompt = prompt + reasoning_text + f"\n</think>\n{code_marker}\n"
+    
+    constrained_out = model(phase_2_prompt, CFG(dsl_config["ebnf"]), max_new_tokens=150, temperature=TEMPERATURE, do_sample=True)
+    if isinstance(constrained_out, list): constrained_out = constrained_out[0]
+
+    phase_2_new_text = constrained_out[len(phase_2_prompt):] if constrained_out.startswith(phase_2_prompt) else constrained_out
+    total_tokens_spent += len(tokenizer.encode(phase_2_new_text))
+    
+    final_code = extract_code(phase_2_new_text, dsl_config["name"])
+        
+    return final_code, {"fast_path_success": False, "compiler_output_fast_path": reason_fast_path_not_successful, 
+                        "tokens_spent": total_tokens_spent, "draft_code": draft_code,
+                        "output_phase_1": new_text}
+
+# =====================================================================
+# Main Evaluation Loop
+# =====================================================================
+def run_benchmark():
+    
+    # -----------------------------------------------------------------
+    # INJECT DSL SPECIFICS HERE (MiniZinc Example)
+    # -----------------------------------------------------------------
+    
 
     MINIZINC_DSL_CONFIG = {
         "name": "MiniZinc",
@@ -259,6 +314,7 @@ def run_benchmark():
         "Zero-Shot": {"pass": 0, "fail": 0},
         "One-Shot (No GCD)": {"pass": 0, "fail": 0},
         "One-Shot (GCD Only)": {"pass": 0, "fail": 0},
+        "One-Shot (CoT + Always GCD)": {"pass": 0, "fail": 0},
         "Dual-Phase (Proposed)": {"pass": 0, "fail": 0, "fast_path_count": 0}
     }
     
@@ -276,6 +332,7 @@ def run_benchmark():
             "Zero-Shot": generate_zero_shot,
             "One-Shot (No GCD)": generate_one_shot_no_gcd,
             "One-Shot (GCD Only)": generate_one_shot_only_gcd,
+            "One-Shot (CoT + Always GCD)": generate_one_shot_cot_always_gcd,
             "Dual-Phase (Proposed)": generate_dual_phase
         }
 
@@ -283,10 +340,9 @@ def run_benchmark():
             method_passed = False
             sample_logs = []
 
-            if method_name == "Dual-Phase (Proposed)":
-                MINIZINC_DSL_CONFIG["name"] = "MaskedName"  # Masking for judge to prevent bias
-            else:
-                MINIZINC_DSL_CONFIG["name"] = "MiniZinc"
+            MINIZINC_DSL_CONFIG["name"] = "MaskedName"  # Default DSL name for all methods
+            if method_name == "Zero-Shot":
+                MINIZINC_DSL_CONFIG["name"] = "MiniZinc" # Only Zero-Short sees the DSL name in the prompt
             
             for k in range(K_SAMPLES):
                 # 1. Generate code and metadata

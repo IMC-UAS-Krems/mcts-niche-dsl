@@ -7,10 +7,11 @@
     \toprule
     \textbf{Method} & \textbf{pass@1} & \textbf{$\Delta$} & \textbf{pass@3} & \textbf{$\Delta$} & \textbf{pass@5} & \textbf{$\Delta$} \\
     \midrule
-    Zero-Shot & 8.0 & +487.5\% & 14.0 & +414.3\% & 23.0 & +230.4\% \\
-    One-Shot (No GCD) & 43.0 & +9.3\% & 56.0 & +28.6\% & 65.0 & +16.9\% \\
-    One-Shot (GCD Only) & 6.0 & +683.3\% & 8.0 & +800.0\% & 9.0 & +744.4\% \\
-    \textbf{Dual-Phase (Proposed)} & 47.0 & - & 72.0 & - & 76.0 & - \\
+    Zero-Shot & 11.0 & +263.6\% & 21.0 & +223.8\% & 29.0 & +165.5\% \\
+    One-Shot (No GCD) & 12.0 & +233.3\% & 15.0 & +353.3\% & 16.0 & +381.2\% \\
+    One-Shot (GCD Only) & 11.0 & +263.6\% & 17.0 & +300.0\% & 22.0 & +250.0\% \\
+    One-Shot (CoT + Always GCD) & 36.0 & +11.1\% & 64.0 & +6.2\% & 71.0 & +8.5\% \\
+    \textbf{Dual-Phase (Proposed)} & 40.0 & - & 68.0 & - & 77.0 & - \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -26,10 +27,11 @@
     \toprule
     \textbf{Method} & \textbf{Mean Time (s)} & \textbf{Time Std (s)} & \textbf{Mean Tokens} & \textbf{Tokens Std} \\
     \midrule
-    Zero-Shot & 0.88 & 0.48 & 32.6 & 17.3 \\
-    One-Shot (No GCD) & 4.94 & 3.09 & 193.6 & 121.7 \\
-    One-Shot (GCD Only) & 2.74 & 0.51 & 36.1 & 16.9 \\
-    \textbf{Dual-Phase (Proposed)} & 5.95 & 4.13 & 165.2 & 160.6 \\
+    Zero-Shot & 0.93 & 0.56 & 34.2 & 19.7 \\
+    One-Shot (No GCD) & 5.70 & 8.59 & 223.8 & 338.5 \\
+    One-Shot (GCD Only) & 2.44 & 0.26 & 30.4 & 7.9 \\
+    One-Shot (CoT + Always GCD) & 7.56 & 7.11 & 232.8 & 279.9 \\
+    \textbf{Dual-Phase (Proposed)} & 8.10 & 8.37 & 258.0 & 328.3 \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -45,8 +47,8 @@
     \toprule
     \textbf{Routing Metric} & \textbf{Rate (\%)} \\
     \midrule
-    Phase 2 Trigger Rate ($P(\text{Phase 2} | \text{Phase 1 Fails})$) & 98.6\% \\
-    Conditional Success Rate ($P(\text{Pass} | \text{Phase 2 Triggered})$) & 45.8\% \\
+    Phase 2 Trigger Rate ($P(\text{Phase 2} | \text{Phase 1 Fails})$) & 81.6\% \\
+    Conditional Success Rate ($P(\text{Pass} | \text{Phase 2 Triggered})$) & 36.3\% \\
     \bottomrule
   \end{tabular}
 \end{table}
