@@ -126,7 +126,8 @@ def visualize_difficulty_performance():
     ax.set_xticklabels([d.capitalize() for d in DIFFICULTIES], fontsize=12, fontweight='bold')
     
     # Legend and Grid
-    ax.legend(title="Generation Method", title_fontsize='11', fontsize=10, loc='upper right', bbox_to_anchor=(1.0, 1.0))
+    ax.legend(title="Generation Method", title_fontsize='12', fontsize=11, 
+              loc='upper center', bbox_to_anchor=(0.5, -0.15), ncol=3)
     ax.grid(axis='y', linestyle='--', alpha=0.7, zorder=0)
 
     # Set Y-axis limit to slightly above 100% to fit the text labels
